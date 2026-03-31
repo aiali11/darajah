@@ -43,7 +43,7 @@
         .btn-flash.active { background: #fff; color: #f1c40f; }
 
         .camera-guide { position: absolute; top: 15%; left: 5%; width: 90%; height: 70%; border: 3px dashed rgba(241, 196, 15, 0.7); border-radius: 10px; pointer-events: none; box-sizing: border-box; display: none; z-index: 5;}
-        .camera-guide::after { content: 'ضع (الإطار الأسود للأسئلة) داخل هذه المساحة'; position: absolute; bottom: -35px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.9); font-size: 13px; font-weight: bold; width: 100%;}
+        .camera-guide::after { content: 'ضع الإطار الأسود للأسئلة داخل هذه المساحة'; position: absolute; bottom: -35px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.9); font-size: 13px; font-weight: bold; width: 100%;}
 
         #answerKeyPanel, #savedSessionPanel { display: none; }
         .key-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid #ecf0f1; padding-bottom: 8px; }
@@ -54,7 +54,6 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* --- إعدادات الطباعة --- */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
@@ -403,36 +402,38 @@
             setTimeout(processRealOMR, 100);
         });
 
-        // --- محرك التصحيح القاطع (مدمج بنظام الطوارئ الإجباري) ---
         function processRealOMR() {
             try {
                 let src = cv.imread(canvasOutput);
                 let gray = new cv.Mat();
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-                // استخدام Adaptive Thresholding لاستخراج الأشكال بوضوح متجاهلاً الظلال
-                let threshBox = new cv.Mat();
-                cv.adaptiveThreshold(gray, threshBox, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
+                // الخطوة 1: قص المساحة المحددة بالمربع الأصفر فوراً لنتجاهل المفرش والخلفية تماماً
+                let w = src.cols;
+                let h = src.rows;
+                // إحداثيات المربع الأصفر اللي في الشاشة (top: 15%, left: 5%, w: 90%, h: 70%)
+                let guideRect = new cv.Rect(Math.floor(w * 0.05), Math.floor(h * 0.15), Math.floor(w * 0.90), Math.floor(h * 0.70));
+                let cropped = gray.roi(guideRect);
 
-                let M_dilate = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5));
-                cv.dilate(threshBox, threshBox, M_dilate);
+                // الخطوة 2: البحث عن الإطار الأسود "داخل المساحة المقصوصة فقط"
+                let blurred = new cv.Mat();
+                cv.GaussianBlur(cropped, blurred, new cv.Size(5, 5), 0);
+
+                let threshBox = new cv.Mat();
+                cv.adaptiveThreshold(blurred, threshBox, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
 
                 let contours = new cv.MatVector();
                 let hierarchy = new cv.Mat();
-                
-                // البحث في الأشكال الخارجية
                 cv.findContours(threshBox, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
                 let maxArea = 0;
                 let bestCnt = null;
 
-                // البحث عن أكبر مساحة منطقية
                 for (let i = 0; i < contours.size(); ++i) {
                     let cnt = contours.get(i);
                     let area = cv.contourArea(cnt);
-                    
-                    // يجب أن يكون الإطار كبير (أكبر من 10% من الشاشة) ولا يغطي الشاشة كلها
-                    if (area > (src.cols * src.rows * 0.10) && area < (src.cols * src.rows * 0.95)) {
+                    // يجب أن يكون الإطار كبير نسبياً داخل المربع المقصوص
+                    if (area > (guideRect.width * guideRect.height * 0.10)) {
                         if (area > maxArea) {
                             maxArea = area;
                             bestCnt = cnt;
@@ -440,60 +441,52 @@
                     }
                 }
 
-                let ptsArray = [];
-
-                // إذا وجدنا الإطار، نأخذ زواياه
+                let warped = new cv.Mat();
+                
                 if (bestCnt) {
+                    // إذا وجد الإطار الأسود، نقوم بتعديل المنظور
+                    let ptsArray = [];
                     for (let i = 0; i < bestCnt.rows; i++) {
                         ptsArray.push({ x: bestCnt.data32S[i * 2], y: bestCnt.data32S[i * 2 + 1] });
                     }
+
+                    let tl = ptsArray.reduce((min, p) => (p.x + p.y < min.x + min.y ? p : min), ptsArray[0]);
+                    let br = ptsArray.reduce((max, p) => (p.x + p.y > max.x + max.y ? p : max), ptsArray[0]);
+                    let tr = ptsArray.reduce((max, p) => (p.x - p.y > max.x - max.y ? p : max), ptsArray[0]);
+                    let bl = ptsArray.reduce((min, p) => (p.x - p.y < min.x - min.y ? p : min), ptsArray[0]);
+
+                    let widthA = Math.hypot(br.x - bl.x, br.y - bl.y);
+                    let widthB = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+                    let maxWidth = Math.max(widthA, widthB);
+
+                    let heightA = Math.hypot(tr.x - br.x, tr.y - br.y);
+                    let heightB = Math.hypot(tl.x - bl.x, tl.y - bl.y);
+                    let maxHeight = Math.max(heightA, heightB);
+
+                    let dsize = new cv.Size(maxWidth, maxHeight);
+                    let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]);
+                    let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth, 0, maxWidth, maxHeight, 0, maxHeight]);
+                    let M = cv.getPerspectiveTransform(srcTri, dstTri);
+                    
+                    cv.warpPerspective(cropped, warped, M, dsize);
+                    srcTri.delete(); dstTri.delete(); M.delete();
                 } else {
-                    // 🚨 نظام الطوارئ الإجباري (Fallback) 🚨
-                    // إذا فشل في إيجاد الإطار (بسبب مفرش، ظل، أو تشويش)، سيقوم بقص المساحة التي حددها المعلم بنفسه!
-                    // هذه إحداثيات (المربع المتقطع الأصفر) الظاهر في الكاميرا:
-                    console.log("استخدام نظام التوجيه الإجباري");
-                    let w = src.cols;
-                    let h = src.rows;
-                    ptsArray = [
-                        { x: w * 0.05, y: h * 0.15 }, // أعلى اليسار
-                        { x: w * 0.95, y: h * 0.15 }, // أعلى اليمين
-                        { x: w * 0.95, y: h * 0.85 }, // أسفل اليمين
-                        { x: w * 0.05, y: h * 0.85 }  // أسفل اليسار
-                    ];
+                    // 🚨 الخطة ب (التصحيح الإجباري): إذا ما لقى إطار أسود، بيعتبر "المربع الأصفر" هو حدود الأسئلة وبيصحح غصب! 🚨
+                    warped = cropped.clone();
                 }
 
-                // استخراج الزوايا الأربع القصوى لتعديل المنظور
-                let tl = ptsArray.reduce((min, p) => (p.x + p.y < min.x + min.y ? p : min), ptsArray[0]);
-                let br = ptsArray.reduce((max, p) => (p.x + p.y > max.x + max.y ? p : max), ptsArray[0]);
-                let tr = ptsArray.reduce((max, p) => (p.x - p.y > max.x - max.y ? p : max), ptsArray[0]);
-                let bl = ptsArray.reduce((min, p) => (p.x - p.y < min.x - min.y ? p : min), ptsArray[0]);
-
-                let widthA = Math.hypot(br.x - bl.x, br.y - bl.y);
-                let widthB = Math.hypot(tr.x - tl.x, tr.y - tl.y);
-                let maxWidth = Math.max(widthA, widthB);
-
-                let heightA = Math.hypot(tr.x - br.x, tr.y - br.y);
-                let heightB = Math.hypot(tl.x - bl.x, tl.y - bl.y);
-                let maxHeight = Math.max(heightA, heightB);
-
-                let dsize = new cv.Size(maxWidth, maxHeight);
-                let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]);
-                let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth, 0, maxWidth, maxHeight, 0, maxHeight]);
-                let M = cv.getPerspectiveTransform(srcTri, dstTri);
-                
-                let warped = new cv.Mat();
-                cv.warpPerspective(gray, warped, M, dsize);
-
-                // فلتر قراءة الدوائر
+                // الخطوة 3: استخراج الإجابات من الورقة
                 let thresh = new cv.Mat();
                 cv.adaptiveThreshold(warped, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
 
                 let proofImg = new cv.Mat();
                 cv.cvtColor(warped, proofImg, cv.COLOR_GRAY2RGBA);
 
-                qCount = qCount || correctAnswers.length; 
-                cCount = cCount || parseInt(document.getElementById('numChoices').value);
+                qCount = qCount || correctAnswers.length || 20; 
+                cCount = cCount || parseInt(document.getElementById('numChoices').value) || 4;
                 
+                let maxWidth = warped.cols;
+                let maxHeight = warped.rows;
                 let rowsPerCol = Math.ceil(qCount / 2);
                 let colW = maxWidth / 2;
                 let rowH = maxHeight / rowsPerCol;
@@ -517,12 +510,19 @@
 
                         let roiSize = Math.min(colW * 0.12, rowH * 0.8);
                         
-                        let x = centerX - (roiSize / 2);
-                        let y = rowCenterY - (roiSize / 2);
+                        let x = Math.floor(centerX - (roiSize / 2));
+                        let y = Math.floor(rowCenterY - (roiSize / 2));
+                        let w_roi = Math.floor(roiSize);
+                        let h_roi = Math.floor(roiSize);
 
-                        let rectChoice = new cv.Rect(Math.floor(x), Math.floor(y), Math.floor(roiSize), Math.floor(roiSize));
+                        // أمان إضافي لحدود الصورة عشان ما يعطي أخطاء
+                        if (x < 0) x = 0;
+                        if (y < 0) y = 0;
+                        if (x + w_roi > thresh.cols) w_roi = thresh.cols - x;
+                        if (y + h_roi > thresh.rows) h_roi = thresh.rows - y;
 
-                        if (rectChoice.x >= 0 && rectChoice.y >= 0 && rectChoice.x + rectChoice.width <= thresh.cols && rectChoice.y + rectChoice.height <= thresh.rows) {
+                        if (w_roi > 0 && h_roi > 0) {
+                            let rectChoice = new cv.Rect(x, y, w_roi, h_roi);
                             let choiceRoi = thresh.roi(rectChoice);
                             let blackPixels = cv.countNonZero(choiceRoi); 
 
@@ -532,13 +532,13 @@
                             }
                             choiceRoi.delete();
                             
-                            cv.rectangle(proofImg, new cv.Point(rectChoice.x, rectChoice.y), new cv.Point(rectChoice.x + rectChoice.width, rectChoice.y + rectChoice.height), new cv.Scalar(255, 0, 0, 150), 2);
+                            cv.rectangle(proofImg, new cv.Point(x, y), new cv.Point(x + w_roi, y + h_roi), new cv.Scalar(255, 0, 0, 150), 2);
                         }
                     }
 
                     // رادار الفراغات
-                    let bubbleArea = roiSize * roiSize;
-                    if (maxBlackPixels < (bubbleArea * 0.20)) {
+                    let bubbleArea = Math.pow(Math.min(colW * 0.12, rowH * 0.8), 2);
+                    if (maxBlackPixels < (bubbleArea * 0.15)) {
                         selectedChoice = -1; 
                     }
 
@@ -557,8 +557,9 @@
 
                 cv.imshow('proofCanvas', proofImg);
                 
-                src.delete(); gray.delete(); threshBox.delete(); M_dilate.delete(); contours.delete(); hierarchy.delete();
-                srcTri.delete(); dstTri.delete(); M.delete(); warped.delete(); thresh.delete(); proofImg.delete();
+                // تنظيف الذاكرة بأمان
+                src.delete(); gray.delete(); cropped.delete(); blurred.delete(); threshBox.delete(); 
+                contours.delete(); hierarchy.delete(); warped.delete(); thresh.delete(); proofImg.delete();
                 
                 loadingOverlay.style.display = 'none';
 
@@ -590,11 +591,11 @@
                         
                         if (navigator.vibrate) navigator.vibrate(200);
                     }
-                }, 500);
+                }, 400);
 
             } catch (err) {
                 console.error(err);
-                alert("حدث خطأ غير متوقع. يرجى تحديث الصفحة والمحاولة مرة أخرى.");
+                alert("⚠️ حدث خطأ. تأكد أن الإضاءة جيدة وأعد التقاط الصورة.");
                 loadingOverlay.style.display = 'none';
                 
                 document.getElementById('videoElement').style.display = 'block';
