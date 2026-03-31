@@ -54,7 +54,7 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* --- إعدادات الطباعة (النسخة العبقرية) --- */
+        /* --- إعدادات الطباعة --- */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
@@ -72,7 +72,6 @@
             .student-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 18px; font-weight: bold;}
             .student-info div { flex: 1; text-align: right; }
             
-            /* ترويسة الحروف (مفاتيح الأعمدة) اللي اقترحتها */
             .keys-header-container { display: grid; grid-template-columns: 50% 50%; width: 100%; margin-bottom: 5px; font-weight: bold; font-size: 16px;}
             .key-col { display: grid; align-items: center; justify-items: center; direction: rtl; width: 100%; }
             .key-letter { display: flex; align-items: center; justify-content: center; }
@@ -81,8 +80,6 @@
             .questions-grid { display: grid; grid-template-columns: 50% 50%; width: 100%; height: 100%; box-sizing: border-box;}
             .question-row { display: grid; align-items: center; justify-items: center; direction: rtl; width: 100%; height: 100%; }
             .question-num { font-weight: bold; font-size: 16px; }
-            
-            /* الدوائر الآن فارغة تماماً لزيادة دقة الذكاء الاصطناعي بشكل جنوني */
             .choice-bubble { width: 26px; height: 26px; border: 2px solid #000; border-radius: 50%; background-color: white; display: flex; align-items: center; justify-content: center; box-sizing: border-box;}
             
             .print-footer { display: flex; justify-content: space-between; margin-top: 25px; font-size: 16px; font-weight: bold; }
@@ -185,7 +182,7 @@
 
     <div class="card" id="answerKeyPanel">
         <h3 style="text-align: center; color: #27ae60; margin-top:0;">إدخال نموذج الإجابة يدوياً</h3>
-        <p style="font-size: 12px; color: #e74c3c; margin-top: -10px;">تنبيه: تأكد من تغيير الإجابات، إذا تركتها بدون تغيير سيتم حفظها كلها كخيار (أ).</p>
+        <p style="font-size: 12px; color: #e74c3c; margin-top: -10px;">تنبيه: تأكد من تغيير الإجابات أدناه لتطابق نموذجك الصحيح.</p>
         <div id="keyForm"></div>
         <button class="btn btn-save" id="saveKeyAndStartBtn">💾 حفظ وبدء التصحيح</button>
     </div>
@@ -413,27 +410,33 @@
             setTimeout(processRealOMR, 100);
         });
 
-        // --- محرك التصحيح القاطع المبني على (الدوائر الفارغة - فكرتك) ---
+        // --- محرك التصحيح القاطع (استعادة RETR_LIST + تقنية البؤرة المركزية) ---
         function processRealOMR() {
             try {
                 let src = cv.imread(canvasOutput);
                 let gray = new cv.Mat();
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
+                // 1. نظام الطوارئ (Fallback) لضمان عدم وجود رسائل خطأ أبداً
                 let w = src.cols;
                 let h = src.rows;
                 let guideRect = new cv.Rect(Math.floor(w * 0.05), Math.floor(h * 0.15), Math.floor(w * 0.90), Math.floor(h * 0.70));
                 let cropped = gray.roi(guideRect);
 
                 let blurred = new cv.Mat();
-                cv.GaussianBlur(cropped, blurred, new cv.Size(5, 5), 0);
+                cv.GaussianBlur(cropped, blurred, new cv.Size(7, 7), 0);
 
-                let threshBox = new cv.Mat();
-                cv.adaptiveThreshold(blurred, threshBox, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
+                // استخراج الحواف بقوة
+                let edges = new cv.Mat();
+                cv.Canny(blurred, edges, 40, 150); 
+                let M_dilate = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+                cv.dilate(edges, edges, M_dilate);
 
                 let contours = new cv.MatVector();
                 let hierarchy = new cv.Mat();
-                cv.findContours(threshBox, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+                
+                // 🚨 استعادة RETR_LIST لاختراق الورقة والبحث عن الإطار الأسود الداخلي فقط 🚨
+                cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
                 let maxArea = 0;
                 let bestCnt = null;
@@ -441,17 +444,25 @@
                 for (let i = 0; i < contours.size(); ++i) {
                     let cnt = contours.get(i);
                     let area = cv.contourArea(cnt);
-                    if (area > (guideRect.width * guideRect.height * 0.10)) {
-                        if (area > maxArea) {
+                    // يجب أن يكون الإطار بحجم معقول داخل المربع المقصوص
+                    if (area > (guideRect.width * guideRect.height * 0.05)) {
+                        let peri = cv.arcLength(cnt, true);
+                        let approx = new cv.Mat();
+                        cv.approxPolyDP(cnt, approx, 0.04 * peri, true);
+                        
+                        if (approx.rows >= 4 && approx.rows <= 10 && area > maxArea) {
                             maxArea = area;
-                            bestCnt = cnt;
+                            if(bestCnt) bestCnt.delete();
+                            bestCnt = approx.clone();
                         }
+                        approx.delete();
                     }
                 }
 
                 let warped = new cv.Mat();
                 
                 if (bestCnt) {
+                    // إذا وجد الإطار الأسود بنجاح، يضبط المنظور بالملّي
                     let ptsArray = [];
                     for (let i = 0; i < bestCnt.rows; i++) {
                         ptsArray.push({ x: bestCnt.data32S[i * 2], y: bestCnt.data32S[i * 2 + 1] });
@@ -476,16 +487,15 @@
                     let M = cv.getPerspectiveTransform(srcTri, dstTri);
                     
                     cv.warpPerspective(cropped, warped, M, dsize);
-                    srcTri.delete(); dstTri.delete(); M.delete();
+                    srcTri.delete(); dstTri.delete(); M.delete(); bestCnt.delete();
                 } else {
+                    // إذا فشل (بسبب إضاءة سيئة جداً)، يصحح المساحة الصفراء غصب بدون أي خطأ
                     warped = cropped.clone();
                 }
 
-                // فلتر صارم جداً للدوائر
-                let tempBlur = new cv.Mat();
-                cv.GaussianBlur(warped, tempBlur, new cv.Size(5, 5), 0);
+                // 2. فلترة الورقة لقراءة الدوائر
                 let thresh = new cv.Mat();
-                cv.threshold(tempBlur, thresh, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
+                cv.adaptiveThreshold(warped, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
 
                 let proofImg = new cv.Mat();
                 cv.cvtColor(warped, proofImg, cv.COLOR_GRAY2RGBA);
@@ -515,13 +525,14 @@
                         let percentFromRight = 0.20 + ((c + 0.5) * (0.80 / cCount));
                         let centerX = colRightEdge - (colW * percentFromRight);
 
+                        // المربع الخارجي الكامل للرسم فقط
                         let visualRoiSize = Math.min(colW * 0.12, rowH * 0.8);
                         let vx = Math.floor(centerX - (visualRoiSize / 2));
                         let vy = Math.floor(rowCenterY - (visualRoiSize / 2));
 
-                        // 🚨 بما أن الدوائر أصبحت فارغة تماماً من الحروف 🚨
-                        // نكبر المساحة المقروءة لتصبح 60% من قلب الدائرة بدلاً من 40%، لضمان صيد القلم النحيف
-                        let coreSize = visualRoiSize * 0.60;
+                        // 🚨 تقنية البؤرة المركزية 🚨
+                        // نفحص فقط 40% من قلب الدائرة الأبيض، لنتجاهل الخط الأسود المحيط بها تماماً
+                        let coreSize = visualRoiSize * 0.40;
                         let x = Math.floor(centerX - (coreSize / 2));
                         let y = Math.floor(rowCenterY - (coreSize / 2));
                         let w_roi = Math.floor(coreSize);
@@ -535,14 +546,14 @@
                             let totalPixels = w_roi * h_roi;
                             let fillPercentage = blackPixels / totalPixels;
 
-                            // 🚨 بسبب خلو الدائرة من التشويش، نخفض العتبة إلى 8% فقط! 🚨
-                            // أي خط بالقلم سيتجاوز هذه النسبة بسهولة، والفراغ سيكون 0%
-                            if (fillPercentage > 0.08) {
+                            // بما أننا نفحص القلب الأبيض الصافي، أي حبر بنسبة 15% فما فوق يعتبر إجابة مؤكدة
+                            if (fillPercentage > 0.15) {
                                 selectedChoicesIndices.push(c);
                                 cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(0, 255, 0, 255), 3);
-                            } else if (fillPercentage > 0.02) {
+                            } else if (fillPercentage > 0.05) {
                                 cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(255, 255, 0, 255), 1);
                             } else {
+                                // فارغة تماماً
                                 cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(255, 0, 0, 100), 1);
                             }
                             
@@ -561,7 +572,7 @@
 
                 cv.imshow('proofCanvas', proofImg);
                 
-                src.delete(); gray.delete(); cropped.delete(); blurred.delete(); threshBox.delete(); tempBlur.delete();
+                src.delete(); gray.delete(); cropped.delete(); blurred.delete(); edges.delete(); M_dilate.delete(); 
                 contours.delete(); hierarchy.delete(); warped.delete(); thresh.delete(); proofImg.delete();
                 
                 loadingOverlay.style.display = 'none';
@@ -607,7 +618,6 @@
             }
         }
 
-        // بناء الورقة المطبوعة بنظام "المفاتيح العلوية" والدوائر المفرغة
         function generatePrintSheet() {
             document.getElementById('printSchool').innerText = document.getElementById('schoolName').value || 'اسم المدرسة';
             document.getElementById('printSubject').innerText = document.getElementById('subjectName').value || '........';
@@ -625,21 +635,17 @@
             cCount = parseInt(document.getElementById('numChoices').value);
             document.getElementById('printTotal').innerText = qCount;
 
-            // 1. توليد ترويسة الحروف (مفاتيح الأعمدة) اللي اقترحتها
             const keysHeader = document.getElementById('keysHeaderContainer');
             let headerHtml = `<div class="key-col" style="grid-template-columns: 20% repeat(${cCount}, ${80/cCount}%);"><div class="question-num"></div>`;
             for (let j = 0; j < cCount; j++) { headerHtml += `<div class="key-letter">${arabicLetters[j]}</div>`; }
             headerHtml += `</div>`;
-            // تكرارها للعمودين
             keysHeader.innerHTML = headerHtml + headerHtml;
 
-            // 2. توليد الأسئلة بدوائر بيضاء مفرغة تماماً
             const container = document.getElementById('questionsContainer');
             container.innerHTML = '';
             for (let i = 1; i <= qCount; i++) {
                 let rowHtml = `<div class="question-row" style="grid-template-columns: 20% repeat(${cCount}, ${80/cCount}%);">
                                <div class="question-num">${i} -</div>`;
-                // الدائرة لا تحتوي على الحرف [j]
                 for (let j = 0; j < cCount; j++) { rowHtml += `<div class="choice-bubble"></div>`; }
                 rowHtml += `</div>`;
                 container.innerHTML += rowHtml;
