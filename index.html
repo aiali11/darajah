@@ -36,7 +36,17 @@
         #cameraContainer { display: none; text-align: center; max-width: 480px; margin: 0 auto; position: relative;}
         #videoElement { width: 100%; border-radius: 15px; border: 4px solid #2c3e50; box-shadow: 0 10px 20px rgba(0,0,0,0.2); background-color: #000; display: none; }
         #canvasOutput { width: 100%; border-radius: 15px; border: 4px solid #27ae60; box-shadow: 0 10px 20px rgba(0,0,0,0.2); display: none; margin-bottom: 15px; }
-        .camera-instruction { background: rgba(0,0,0,0.8); color: white; padding: 10px 15px; border-radius: 10px; font-size: 15px; font-weight: bold; margin-bottom: 15px; }
+        
+        .camera-header { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.8); color: white; padding: 10px 15px; border-radius: 10px; margin-bottom: 15px; }
+        .camera-instruction { font-size: 14px; font-weight: bold; }
+        
+        /* تصميم زر الفلاش */
+        .btn-flash { background: #f1c40f; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 10px rgba(241,196,15,0.5); }
+        .btn-flash.active { background: #fff; color: #f1c40f; }
+
+        /* إطار التوجيه الوهمي لتسهيل وزنية الورقة على المعلم */
+        .camera-guide { position: absolute; top: 15%; left: 5%; width: 90%; height: 70%; border: 3px dashed rgba(241, 196, 15, 0.7); border-radius: 10px; pointer-events: none; box-sizing: border-box; display: none; z-index: 5;}
+        .camera-guide::after { content: 'ضع إطار الأسئلة هنا'; position: absolute; bottom: -30px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.8); font-size: 14px; font-weight: bold; width: 100%;}
 
         #answerKeyPanel, #savedSessionPanel { display: none; }
         .key-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid #ecf0f1; padding-bottom: 8px; }
@@ -47,7 +57,7 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* --- إعدادات الطباعة (تم تطبيق التطابق الشبكي) --- */
+        /* --- إعدادات الطباعة --- */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
@@ -65,7 +75,6 @@
             .student-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 18px; font-weight: bold;}
             .student-info div { flex: 1; text-align: right; }
             
-            /* الهندسة الصارمة للشبكة لضمان قراءة الكاميرا بدقة 100% */
             .omr-scanner-box { border: 4px solid #000; border-radius: 10px; margin-top: 15px; height: 550px; position: relative; box-sizing: border-box; padding: 0; background-color: #fff;}
             .questions-grid { display: grid; grid-template-columns: 50% 50%; width: 100%; height: 100%; box-sizing: border-box;}
             .question-row { display: grid; align-items: center; justify-items: center; direction: rtl; width: 100%; height: 100%; }
@@ -177,8 +186,16 @@
     </div>
 
     <div id="cameraContainer">
-        <div class="camera-instruction" id="cameraInstruction">📝 وجه الكاميرا بحيث تظهر أسئلة الورقة كاملة، ثم اضغط التقاط</div>
-        <video id="videoElement" autoplay playsinline muted></video>
+        <div class="camera-header">
+            <div class="camera-instruction" id="cameraInstruction">📝 طابق إطار الأسئلة مع المربع</div>
+            <button class="btn-flash" id="flashBtn" title="تشغيل الكشاف">💡</button>
+        </div>
+        
+        <div style="position: relative; width: 100%;">
+            <video id="videoElement" autoplay playsinline muted></video>
+            <div class="camera-guide" id="cameraGuide"></div>
+        </div>
+        
         <canvas id="canvasOutput"></canvas>
         <button class="btn btn-capture" id="takePhotoBtn">📸 التقط الصورة وصحح</button>
     </div>
@@ -230,11 +247,16 @@
         const loadingText = document.getElementById('loadingText');
         const takePhotoBtn = document.getElementById('takePhotoBtn');
         const cameraInstruction = document.getElementById('cameraInstruction');
+        const cameraGuide = document.getElementById('cameraGuide');
+        const flashBtn = document.getElementById('flashBtn');
         
         const arabicLetters = ['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
         let correctAnswers = []; 
         let isWaitingForAnswerKey = false;
         let qCount, cCount;
+        
+        let videoTrack = null;
+        let isFlashOn = false;
 
         document.getElementById('addPrincipalCheck').addEventListener('change', function() {
             document.getElementById('principalInputDiv').style.display = this.checked ? 'block' : 'none';
@@ -304,6 +326,23 @@
             startInAppCamera();
         });
 
+        // تشغيل الفلاش (الكشاف)
+        flashBtn.addEventListener('click', async () => {
+            if (!videoTrack) return;
+            try {
+                const capabilities = videoTrack.getCapabilities();
+                if (capabilities.torch) {
+                    isFlashOn = !isFlashOn;
+                    await videoTrack.applyConstraints({ advanced: [{ torch: isFlashOn }] });
+                    flashBtn.classList.toggle('active');
+                } else {
+                    alert("عذراً، متصفحك أو جهازك لا يدعم تشغيل الفلاش من الموقع مباشرة.");
+                }
+            } catch (err) {
+                console.error("خطأ في تشغيل الفلاش", err);
+            }
+        });
+
         async function startInAppCamera() {
             document.getElementById('settingsPanel').style.display = 'none';
             document.getElementById('savedSessionPanel').style.display = 'none';
@@ -312,14 +351,15 @@
             
             canvasOutput.style.display = 'none'; 
             video.style.display = 'block';
+            cameraGuide.style.display = 'block'; // إظهار المربع الوهمي
             takePhotoBtn.style.display = 'block';
+            isFlashOn = false;
+            flashBtn.classList.remove('active');
             
             if(isWaitingForAnswerKey) {
-                cameraInstruction.innerHTML = "📸 وجه الكاميرا نحو <b>نموذج الإجابة</b> ثم اضغط التقاط";
-                cameraInstruction.style.background = "rgba(230, 126, 34, 0.9)";
+                cameraInstruction.innerHTML = "📸 صور <b>نموذج الإجابة</b>";
             } else {
-                cameraInstruction.innerHTML = "📝 وجه الكاميرا نحو <b>ورقة الطالب</b> ثم اضغط التقاط";
-                cameraInstruction.style.background = "rgba(0,0,0,0.8)";
+                cameraInstruction.innerHTML = "📝 طابق إطار الأسئلة مع المربع";
             }
 
             try {
@@ -328,6 +368,18 @@
                     audio: false 
                 });
                 video.srcObject = stream;
+                videoTrack = stream.getVideoTracks()[0];
+                
+                // إظهار زر الفلاش فقط إذا كان مدعوماً
+                setTimeout(() => {
+                    const capabilities = videoTrack.getCapabilities();
+                    if(capabilities.torch) {
+                        flashBtn.style.display = 'flex';
+                    } else {
+                        flashBtn.style.display = 'none';
+                    }
+                }, 500);
+
             } catch (err) {
                 alert("تعذر الوصول للكاميرا. يرجى إعطاء الصلاحية للمتصفح.");
             }
@@ -340,8 +392,16 @@
             ctx.drawImage(video, 0, 0, canvasOutput.width, canvasOutput.height);
 
             video.style.display = 'none';
+            cameraGuide.style.display = 'none';
             takePhotoBtn.style.display = 'none';
             canvasOutput.style.display = 'block';
+
+            // إطفاء الفلاش تلقائياً بعد التصوير
+            if (isFlashOn && videoTrack) {
+                videoTrack.applyConstraints({ advanced: [{ torch: false }] });
+                isFlashOn = false;
+                flashBtn.classList.remove('active');
+            }
 
             loadingText.innerText = "جاري قراءة الدوائر واستخراج الدرجة...";
             loadingOverlay.style.display = 'flex';
@@ -349,17 +409,27 @@
             setTimeout(processRealOMR, 100);
         });
 
+        // --- محرك التصحيح المتسامح والدقيق ---
         function processRealOMR() {
             try {
                 let src = cv.imread(canvasOutput);
                 let gray = new cv.Mat();
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-                let blurred = new cv.Mat();
-                cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+                // تعزيز التباين (Contrast) لتقوية الإطار الأسود في الإضاءة المتوسطة
+                let enhanced = new cv.Mat();
+                gray.convertTo(enhanced, -1, 1.2, -20); // زيادة التباين وتغميق الصورة قليلاً
 
+                let blurred = new cv.Mat();
+                cv.GaussianBlur(enhanced, blurred, new cv.Size(7, 7), 0); // تمويه أعلى لتجاهل التشويش
+
+                // تخفيف "عناد" الذكاء الاصطناعي في البحث عن المربع
                 let edges = new cv.Mat();
-                cv.Canny(blurred, edges, 75, 200);
+                cv.Canny(blurred, edges, 40, 150); // نطاق أوسع لاكتشاف الحواف
+
+                // تكبير الحواف لضمان اتصال خطوط المربع إذا كانت الإضاءة ضعيفة
+                let M_dilate = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+                cv.dilate(edges, edges, M_dilate);
 
                 let contours = new cv.MatVector();
                 let hierarchy = new cv.Mat();
@@ -371,10 +441,12 @@
                 for (let i = 0; i < contours.size(); ++i) {
                     let cnt = contours.get(i);
                     let area = cv.contourArea(cnt);
-                    if (area > (src.cols * src.rows * 0.1)) {
+                    // تساهل في حجم الإطار (يقبل حتى لو كان يشغل 5% فقط من الشاشة)
+                    if (area > (src.cols * src.rows * 0.05)) {
                         let peri = cv.arcLength(cnt, true);
                         let approx = new cv.Mat();
-                        cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+                        // نسبة تقريب أكبر (0.04) ليتسامح مع المربعات غير المثالية
+                        cv.approxPolyDP(cnt, approx, 0.04 * peri, true);
                         if (approx.rows === 4 && area > maxArea) {
                             maxArea = area;
                             if(paperContour) paperContour.delete();
@@ -385,7 +457,7 @@
                 }
 
                 if (!paperContour) {
-                    throw new Error("لم يتم العثور على الإطار الأسود");
+                    throw new Error("لم يتم العثور على الإطار");
                 }
 
                 let pts = [];
@@ -411,7 +483,7 @@
                 let warped = new cv.Mat();
                 cv.warpPerspective(gray, warped, M, dsize);
 
-                // فلتر الإضاءة الذكي لعزل الظلال تماماً (Adaptive Thresholding)
+                // فلتر إضاءة قوي للدوائر
                 let thresh = new cv.Mat();
                 cv.adaptiveThreshold(warped, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
 
@@ -428,9 +500,7 @@
                 let finalScore = 0;
                 let detectedAnswers = [];
 
-                // المعادلة الرياضية للتطابق الشبكي
                 for (let q = 0; q < qCount; q++) {
-                    // تصحيح انحراف الشبكة (q=0 يمين، q=1 يسار)
                     let isRightCol = (q % 2 === 0);
                     let rowIdx = Math.floor(q / 2);
                     
@@ -441,7 +511,6 @@
                     let selectedChoice = -1;
 
                     for (let c = 0; c < cCount; c++) {
-                        // حساب دقيق لمركز الدائرة استناداً إلى CSS Grid
                         let percentFromRight = 0.20 + ((c + 0.5) * (0.80 / cCount));
                         let centerX = colRightEdge - (colW * percentFromRight);
 
@@ -462,12 +531,10 @@
                             }
                             choiceRoi.delete();
                             
-                            // رسم مربع المراقبة (أحمر)
                             cv.rectangle(proofImg, new cv.Point(rectChoice.x, rectChoice.y), new cv.Point(rectChoice.x + rectChoice.width, rectChoice.y + rectChoice.height), new cv.Scalar(255, 0, 0, 150), 2);
                         }
                     }
 
-                    // تصفير السؤال إذا كانت الدائرة غير مظللة (أقل من 20% حبر)
                     let bubbleArea = roiSize * roiSize;
                     if (maxBlackPixels < (bubbleArea * 0.20)) {
                         selectedChoice = -1; 
@@ -475,7 +542,6 @@
 
                     detectedAnswers.push(selectedChoice);
 
-                    // رسم مربع الاختيار (أخضر)
                     if (selectedChoice !== -1) {
                         let finalPercent = 0.20 + ((selectedChoice + 0.5) * (0.80 / cCount));
                         let finalCenterX = colRightEdge - (colW * finalPercent);
@@ -489,7 +555,7 @@
 
                 cv.imshow('proofCanvas', proofImg);
                 
-                src.delete(); gray.delete(); blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete();
+                src.delete(); gray.delete(); enhanced.delete(); blurred.delete(); edges.delete(); M_dilate.delete(); contours.delete(); hierarchy.delete();
                 paperContour.delete(); srcTri.delete(); dstTri.delete(); M.delete(); warped.delete(); thresh.delete(); proofImg.delete();
                 
                 loadingOverlay.style.display = 'none';
@@ -498,7 +564,7 @@
                     if(isWaitingForAnswerKey) {
                         correctAnswers = detectedAnswers; 
                         localStorage.setItem('omr_correct_answers', JSON.stringify(correctAnswers));
-                        alert("✅ تم قراءة النموذج وحفظه بنجاح! راجع صورة الإثبات للتأكد. يمكنك الآن بدء تصحيح أوراق الطلاب.");
+                        alert("✅ تم قراءة النموذج وحفظه بنجاح! راجع صورة الإثبات للتأكد.");
                         
                         document.getElementById('cameraContainer').style.display = 'none';
                         document.getElementById('resultsCard').style.display = 'block';
@@ -526,17 +592,16 @@
 
             } catch (err) {
                 console.error(err);
-                alert("⚠️ تعذر التصحيح! تأكد من إظهار (الإطار الأسود) كاملاً ومستقيماً تحت إضاءة جيدة.");
+                alert("⚠️ تعذر التعرف على إطار الأسئلة. حاول إدخال الإطار كاملاً داخل المربع المتقطع أو شغل الفلاش.");
                 loadingOverlay.style.display = 'none';
                 
-                // حماية: إعادة إظهار الأزرار في حال فشل القراءة
                 document.getElementById('videoElement').style.display = 'block';
+                cameraGuide.style.display = 'block';
                 document.getElementById('takePhotoBtn').style.display = 'block';
                 document.getElementById('canvasOutput').style.display = 'none';
             }
         }
 
-        // هندسة التوزيع الشبكي (CSS Grid) مطابقة بنسبة 100% لمحرك التحليل
         function generatePrintSheet() {
             document.getElementById('printSchool').innerText = document.getElementById('schoolName').value || 'اسم المدرسة';
             document.getElementById('printSubject').innerText = document.getElementById('subjectName').value || '........';
@@ -557,7 +622,6 @@
             const container = document.getElementById('questionsContainer');
             container.innerHTML = '';
             for (let i = 1; i <= qCount; i++) {
-                // التقسيم الدقيق: 20% للرقم، والمتبقي مقسم على الخيارات بالتساوي
                 let rowHtml = `<div class="question-row" style="grid-template-columns: 20% repeat(${cCount}, ${80/cCount}%);">
                                <div class="question-num">${i} -</div>`;
                 for (let j = 0; j < cCount; j++) { rowHtml += `<div class="choice-bubble">${arabicLetters[j]}</div>`; }
