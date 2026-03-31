@@ -54,6 +54,7 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
+        /* --- إعدادات الطباعة --- */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
@@ -177,6 +178,7 @@
 
     <div class="card" id="answerKeyPanel">
         <h3 style="text-align: center; color: #27ae60; margin-top:0;">إدخال نموذج الإجابة يدوياً</h3>
+        <p style="font-size: 12px; color: #e74c3c; margin-top: -10px;">تنبيه: تأكد من تغيير الإجابات، إذا تركتها بدون تغيير سيتم حفظها كلها كخيار (أ).</p>
         <div id="keyForm"></div>
         <button class="btn btn-save" id="saveKeyAndStartBtn">💾 حفظ وبدء التصحيح</button>
     </div>
@@ -402,18 +404,23 @@
             setTimeout(processRealOMR, 100);
         });
 
-        // --- محرك التصحيح المحدث (تعديل الحساسية لقلم الحبر النحيف) ---
+        // --- محرك التصحيح (بتقنية البؤرة المركزية لتجاهل الحدود والتشويش) ---
         function processRealOMR() {
             try {
                 let src = cv.imread(canvasOutput);
                 let gray = new cv.Mat();
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-                let threshBox = new cv.Mat();
-                cv.adaptiveThreshold(gray, threshBox, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
+                let w = src.cols;
+                let h = src.rows;
+                let guideRect = new cv.Rect(Math.floor(w * 0.05), Math.floor(h * 0.15), Math.floor(w * 0.90), Math.floor(h * 0.70));
+                let cropped = gray.roi(guideRect);
 
-                let M_dilate_box = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5));
-                cv.dilate(threshBox, threshBox, M_dilate_box);
+                let blurred = new cv.Mat();
+                cv.GaussianBlur(cropped, blurred, new cv.Size(5, 5), 0);
+
+                let threshBox = new cv.Mat();
+                cv.adaptiveThreshold(blurred, threshBox, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
 
                 let contours = new cv.MatVector();
                 let hierarchy = new cv.Mat();
@@ -421,66 +428,70 @@
 
                 let maxArea = 0;
                 let bestCnt = null;
+
                 for (let i = 0; i < contours.size(); ++i) {
                     let cnt = contours.get(i);
                     let area = cv.contourArea(cnt);
-                    if (area > (src.cols * src.rows * 0.10) && area < (src.cols * src.rows * 0.95)) {
-                        if (area > maxArea) { maxArea = area; bestCnt = cnt; }
+                    if (area > (guideRect.width * guideRect.height * 0.10)) {
+                        if (area > maxArea) {
+                            maxArea = area;
+                            bestCnt = cnt;
+                        }
                     }
                 }
 
-                let ptsArray = [];
+                let warped = new cv.Mat();
+                
                 if (bestCnt) {
+                    let ptsArray = [];
                     for (let i = 0; i < bestCnt.rows; i++) {
                         ptsArray.push({ x: bestCnt.data32S[i * 2], y: bestCnt.data32S[i * 2 + 1] });
                     }
+
+                    let tl = ptsArray.reduce((min, p) => (p.x + p.y < min.x + min.y ? p : min), ptsArray[0]);
+                    let br = ptsArray.reduce((max, p) => (p.x + p.y > max.x + max.y ? p : max), ptsArray[0]);
+                    let tr = ptsArray.reduce((max, p) => (p.x - p.y > max.x - max.y ? p : max), ptsArray[0]);
+                    let bl = ptsArray.reduce((min, p) => (p.x - p.y < min.x - min.y ? p : min), ptsArray[0]);
+
+                    let widthA = Math.hypot(br.x - bl.x, br.y - bl.y);
+                    let widthB = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+                    let maxWidth = Math.max(widthA, widthB);
+
+                    let heightA = Math.hypot(tr.x - br.x, tr.y - br.y);
+                    let heightB = Math.hypot(tl.x - bl.x, tl.y - bl.y);
+                    let maxHeight = Math.max(heightA, heightB);
+
+                    let dsize = new cv.Size(maxWidth, maxHeight);
+                    let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]);
+                    let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth, 0, maxWidth, maxHeight, 0, maxHeight]);
+                    let M = cv.getPerspectiveTransform(srcTri, dstTri);
+                    
+                    cv.warpPerspective(cropped, warped, M, dsize);
+                    srcTri.delete(); dstTri.delete(); M.delete();
                 } else {
-                    let w = src.cols; let h = src.rows;
-                    ptsArray = [{ x: w*0.05, y: h*0.15 }, { x: w*0.95, y: h*0.15 }, { x: w*0.95, y: h*0.85 }, { x: w*0.05, y: h*0.85 }];
+                    warped = cropped.clone();
                 }
 
-                let tl = ptsArray.reduce((min, p) => (p.x + p.y < min.x + min.y ? p : min), ptsArray[0]);
-                let br = ptsArray.reduce((max, p) => (p.x + p.y > max.x + max.y ? p : max), ptsArray[0]);
-                let tr = ptsArray.reduce((max, p) => (p.x - p.y > max.x - max.y ? p : max), ptsArray[0]);
-                let bl = ptsArray.reduce((min, p) => (p.x - p.y < min.x - min.y ? p : min), ptsArray[0]);
+                // 🚨 تغيير الفلتر إلى Otsu الصارم لإزالة تشويش الورقة تماماً والإبقاء على الحبر فقط
+                let tempBlur = new cv.Mat();
+                cv.GaussianBlur(warped, tempBlur, new cv.Size(5, 5), 0);
+                let thresh = new cv.Mat();
+                cv.threshold(tempBlur, thresh, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
 
-                let widthA = Math.hypot(br.x - bl.x, br.y - bl.y);
-                let widthB = Math.hypot(tr.x - tl.x, tr.y - tl.y);
-                let maxWidth = Math.max(widthA, widthB);
-                let heightA = Math.hypot(tr.x - br.x, tr.y - br.y);
-                let heightB = Math.hypot(tl.x - bl.x, tl.y - bl.y);
-                let maxHeight = Math.max(heightA, heightB);
-
-                let dsize = new cv.Size(maxWidth, maxHeight);
-                let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]);
-                let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth, 0, maxWidth, maxHeight, 0, maxHeight]);
-                let M_warp = cv.getPerspectiveTransform(srcTri, dstTri);
-                
-                let warped = new cv.Mat();
-                cv.warpPerspective(gray, warped, M_warp, dsize);
-
-                // دليل المطابقة البصرية
                 let proofImg = new cv.Mat();
                 cv.cvtColor(warped, proofImg, cv.COLOR_GRAY2RGBA);
 
-                // تحويل الورقة لثنائية لقراءة التظليل
-                let thresh = new cv.Mat();
-                // تم تقليل عتبة الـ C إلى 10 لزيادة الحساسية لشحنات القلم النحيفة
-                cv.adaptiveThreshold(warped, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 41, 10);
-
-                qCount = qCount || correctAnswers.length; 
-                cCount = cCount || parseInt(document.getElementById('numChoices').value);
+                qCount = qCount || correctAnswers.length || 20; 
+                cCount = cCount || parseInt(document.getElementById('numChoices').value) || 4;
                 
+                let maxWidth = warped.cols;
+                let maxHeight = warped.rows;
                 let rowsPerCol = Math.ceil(qCount / 2);
                 let colW = maxWidth / 2;
                 let rowH = maxHeight / rowsPerCol;
 
                 let finalScore = 0;
                 let detectedAnswers = [];
-
-                // 🚨 تعديل الحساسية: عتبة التظليل الجديدة 🚨
-                // تم تقليل النسبة إلى 15% فقط لتعتبر إجابة (مناسب لقلم الحبر النحيف والشخطات الوسطية)
-                const STICK_FILL_THRESHOLD = 0.15; 
 
                 for (let q = 0; q < qCount; q++) {
                     let isRightCol = (q % 2 === 0);
@@ -495,55 +506,53 @@
                         let percentFromRight = 0.20 + ((c + 0.5) * (0.80 / cCount));
                         let centerX = colRightEdge - (colW * percentFromRight);
 
-                        let roiSize = Math.min(colW * 0.12, rowH * 0.8);
-                        
-                        let x = Math.floor(centerX - (roiSize / 2));
-                        let y = Math.floor(rowCenterY - (roiSize / 2));
-                        let w_roi = Math.floor(roiSize);
-                        let h_roi = Math.floor(roiSize);
+                        // المربع الخارجي (للرسم فقط)
+                        let visualRoiSize = Math.min(colW * 0.12, rowH * 0.8);
+                        let vx = Math.floor(centerX - (visualRoiSize / 2));
+                        let vy = Math.floor(rowCenterY - (visualRoiSize / 2));
 
-                        if (x < 0) x = 0; if (y < 0) y = 0;
-                        if (x + w_roi > thresh.cols) w_roi = thresh.cols - x;
-                        if (y + h_roi > thresh.rows) h_roi = thresh.rows - y;
+                        // 🚨 المربع الداخلي (البؤرة 40% فقط) لتجاهل حدود الدائرة المطبوعة 🚨
+                        let coreSize = visualRoiSize * 0.45;
+                        let x = Math.floor(centerX - (coreSize / 2));
+                        let y = Math.floor(rowCenterY - (coreSize / 2));
+                        let w_roi = Math.floor(coreSize);
+                        let h_roi = Math.floor(coreSize);
 
-                        if (w_roi > 0 && h_roi > 0) {
+                        if (x > 0 && y > 0 && x + w_roi < thresh.cols && y + h_roi < thresh.rows) {
                             let rectChoice = new cv.Rect(x, y, w_roi, h_roi);
                             let choiceRoi = thresh.roi(rectChoice);
                             
-                            // حساب مساحة السواد داخل الدائرة
                             let blackPixels = cv.countNonZero(choiceRoi); 
                             let totalPixels = w_roi * h_roi;
                             let fillPercentage = blackPixels / totalPixels;
 
-                            // رسم مربع المراقبة الأحمر الافتراضي
-                            cv.rectangle(proofImg, new cv.Point(x, y), new cv.Point(x + w_roi, y + h_roi), new cv.Scalar(255, 0, 0, 100), 1);
-
-                            // إذا تجاوز تظليل القلم العتبة الجديدة (المنخفضة)، نعتبرها إجابة
-                            if (fillPercentage >= STICK_FILL_THRESHOLD) {
+                            // لأننا نأخذ (القلب) فقط، أي شخبطة ستغطي جزء كبير منه، والفارغ سيكون نسبة الحبر فيه قريبة من 0
+                            if (fillPercentage > 0.20) {
                                 selectedChoicesIndices.push(c);
-                                // رسم إطار أخضر سميك للتأكيد البصري على قبول التظليل
-                                cv.rectangle(proofImg, new cv.Point(x, y), new cv.Point(x + w_roi, y + h_roi), new cv.Scalar(0, 255, 0, 255), 4);
+                                cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(0, 255, 0, 255), 3);
+                            } else if (fillPercentage > 0.05) {
+                                cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(255, 255, 0, 255), 1);
+                            } else {
+                                cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(255, 0, 0, 100), 1);
                             }
                             
                             choiceRoi.delete();
                         }
                     }
 
-                    // تحديد الإجابة النهائية للسؤال
                     if (selectedChoicesIndices.length === 1) {
                         detectedAnswers.push(selectedChoicesIndices[0]);
                     } else if (selectedChoicesIndices.length > 1) {
-                        detectedAnswers.push(-2); // تعدد التظليل (صفر)
+                        detectedAnswers.push(-2); 
                     } else {
-                        detectedAnswers.push(-1); // فارغ (صفر)
+                        detectedAnswers.push(-1); 
                     }
                 }
 
                 cv.imshow('proofCanvas', proofImg);
                 
-                src.delete(); gray.delete(); threshBox.delete(); M_dilate_box.delete(); 
-                contours.delete(); hierarchy.delete(); srcTri.delete(); dstTri.delete(); 
-                M_warp.delete(); warped.delete(); thresh.delete(); proofImg.delete();
+                src.delete(); gray.delete(); cropped.delete(); blurred.delete(); threshBox.delete(); tempBlur.delete();
+                contours.delete(); hierarchy.delete(); warped.delete(); thresh.delete(); proofImg.delete();
                 
                 loadingOverlay.style.display = 'none';
 
@@ -551,7 +560,7 @@
                     if(isWaitingForAnswerKey) {
                         correctAnswers = detectedAnswers; 
                         localStorage.setItem('omr_correct_answers', JSON.stringify(correctAnswers));
-                        alert("✅ تم قراءة نموذج الإجابة وحفظه بنجاح! راجع صورة الإثبات للتأكد من المربعات الخضراء.");
+                        alert("✅ تم قراءة نموذج الإجابة وحفظه بنجاح! راجع صورة الإثبات للتأكد.");
                         
                         document.getElementById('cameraContainer').style.display = 'none';
                         document.getElementById('resultsCard').style.display = 'block';
@@ -579,7 +588,7 @@
 
             } catch (err) {
                 console.error(err);
-                alert("⚠️ حدث خطأ أثناء التصحيح. تأكد من إضاءة الورقة جيداً وإظهار الإطار الأسود كاملاً.");
+                alert("⚠️ حدث خطأ أثناء التصحيح. تأكد من إضاءة الورقة جيداً.");
                 loadingOverlay.style.display = 'none';
                 document.getElementById('videoElement').style.display = 'block';
                 cameraGuide.style.display = 'block';
