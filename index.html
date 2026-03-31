@@ -33,12 +33,9 @@
         .btn-resume { background-color: #8e44ad; }
         .btn-capture { background-color: #f1c40f; color: #2c3e50; font-size: 18px; padding: 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(241, 196, 15, 0.4); margin-top: 15px; width: 100%; }
 
-        .method-box { border: 2px dashed #bdc3c7; padding: 15px; border-radius: 10px; margin-bottom: 15px; background-color: #fafbfc; }
-        .method-box h4 { margin: 0 0 10px 0; color: #2c3e50; }
-
         #cameraContainer { display: none; text-align: center; max-width: 480px; margin: 0 auto; position: relative;}
         #videoElement { width: 100%; border-radius: 15px; border: 4px solid #2c3e50; box-shadow: 0 10px 20px rgba(0,0,0,0.2); background-color: #000; display: none; }
-        #canvasOutput { width: 100%; border-radius: 15px; border: 4px solid #27ae60; box-shadow: 0 10px 20px rgba(0,0,0,0.2); display: none; }
+        #canvasOutput { width: 100%; border-radius: 15px; border: 4px solid #27ae60; box-shadow: 0 10px 20px rgba(0,0,0,0.2); display: none; margin-bottom: 15px; }
         .camera-instruction { background: rgba(0,0,0,0.8); color: white; padding: 10px 15px; border-radius: 10px; font-size: 15px; font-weight: bold; margin-bottom: 15px; }
 
         #answerKeyPanel, #savedSessionPanel { display: none; }
@@ -50,7 +47,7 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* --- إعدادات الطباعة الاحترافية --- */
+        /* إعدادات الطباعة */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
@@ -104,6 +101,10 @@
                 <div class="result-label">النسبة المئوية</div>
             </div>
         </div>
+        
+        <h4 style="color: #7f8c8d; margin-top: 20px; margin-bottom: 5px;">شاشة المطابقة البصرية (للتأكد من دقة التصحيح):</h4>
+        <canvas id="proofCanvas" style="width: 100%; border-radius: 10px; border: 2px solid #bdc3c7; margin-bottom: 15px;"></canvas>
+        
         <button class="btn btn-save" id="nextPaperBtn">📸 تصوير ورقة طالب أخرى</button>
     </div>
 
@@ -221,6 +222,7 @@
     <script>
         const video = document.getElementById('videoElement');
         const canvasOutput = document.getElementById('canvasOutput');
+        const proofCanvas = document.getElementById('proofCanvas');
         const loadingOverlay = document.getElementById('loadingOverlay');
         const loadingText = document.getElementById('loadingText');
         const takePhotoBtn = document.getElementById('takePhotoBtn');
@@ -344,7 +346,7 @@
             setTimeout(processRealOMR, 100);
         });
 
-        // --- محرك التصحيح الفعلي (Real OMR Engine) ---
+        // --- محرك التصحيح القاطع والدقيق (Foolproof OMR Engine) ---
         function processRealOMR() {
             try {
                 let src = cv.imread(canvasOutput);
@@ -364,7 +366,7 @@
                 let paperContour = null;
                 let maxArea = 0;
 
-                // 1. البحث عن الإطار الأسود
+                // 1. العثور على الإطار الأسود الكبير
                 for (let i = 0; i < contours.size(); ++i) {
                     let cnt = contours.get(i);
                     let area = cv.contourArea(cnt);
@@ -385,11 +387,11 @@
                     throw new Error("لم يتم العثور على الإطار الأسود");
                 }
 
-                // 2. تعديل المنظور (Warp Perspective) لتسطيح الورقة
+                // 2. تعديل المنظور (Warp Perspective)
                 let pts = [];
                 for (let i = 0; i < 4; i++) { pts.push({ x: paperContour.data32S[i * 2], y: paperContour.data32S[i * 2 + 1] }); }
-                pts.sort((a, b) => a.y - b.y); // ترتيب علوي وسفلي
-                let top = [pts[0], pts[1]].sort((a, b) => a.x - b.x); // يسار ويمين
+                pts.sort((a, b) => a.y - b.y); 
+                let top = [pts[0], pts[1]].sort((a, b) => a.x - b.x); 
                 let bottom = [pts[2], pts[3]].sort((a, b) => a.x - b.x);
                 let tl = top[0], tr = top[1], bl = bottom[0], br = bottom[1];
 
@@ -409,16 +411,21 @@
                 let warped = new cv.Mat();
                 cv.warpPerspective(gray, warped, M, dsize);
 
-                // 3. عزل الحبر الأسود
+                // 3. فلتر الإضاءة الذكي (Adaptive Threshold) لتجاهل الظلال تماماً
                 let thresh = new cv.Mat();
-                cv.threshold(warped, thresh, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
+                cv.adaptiveThreshold(warped, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
 
-                // 4. تقسيم الشبكة وقراءة الدوائر
-                qCount = qCount || correctAnswers.length; // تأمين المتغير
+                // تجهيز صورة ملونة لرسم دليل الإثبات X-Ray
+                let proofImg = new cv.Mat();
+                cv.cvtColor(warped, proofImg, cv.COLOR_GRAY2RGBA);
+
+                qCount = qCount || correctAnswers.length; 
                 cCount = cCount || parseInt(document.getElementById('numChoices').value);
                 
                 let rowsPerCol = Math.ceil(qCount / 2);
-                let marginX = maxWidth * 0.05; // تجاهل حواف الإطار الأسود
+                
+                // هوامش أمان دقيقة لاستبعاد الخط الأسود نفسه من الحسبة
+                let marginX = maxWidth * 0.06; 
                 let marginY = maxHeight * 0.05;
                 let workWidth = maxWidth - (2 * marginX);
                 let workHeight = maxHeight - (2 * marginY);
@@ -428,6 +435,7 @@
                 let finalScore = 0;
                 let detectedAnswers = [];
 
+                // 4. المسح الدقيق للدوائر
                 for (let q = 0; q < qCount; q++) {
                     let isRightColumn = q < rowsPerCol;
                     let rowIdx = isRightColumn ? q : (q - rowsPerCol);
@@ -435,15 +443,16 @@
                     let startX = marginX + (isRightColumn ? colWidth : 0);
                     let startY = marginY + (rowIdx * rowHeight);
 
-                    let segmentWidth = colWidth / (cCount + 1); // تقسيم الصف لخيارات + رقم السؤال
+                    let segmentWidth = colWidth / (cCount + 1); // مساحة مخصصة للرقم
                     let maxBlackPixels = 0;
                     let selectedChoice = -1;
 
-                    // مسح الخيارات (أ، ب، ج، د) من اليمين لليسار حسب التنسيق العربي
+                    // مسح الخيارات (أ، ب، ج، د) 
                     for (let c = 0; c < cCount; c++) {
-                        let x = (startX + colWidth) - ((c + 2) * segmentWidth); // تجاوز مساحة رقم السؤال
+                        // حساب إحداثيات الدائرة بالضبط من اليمين لليسار
+                        let x = (startX + colWidth) - ((c + 1.8) * segmentWidth); 
                         let y = startY + (rowHeight * 0.15); 
-                        let w = segmentWidth;
+                        let w = segmentWidth * 0.8; 
                         let h = rowHeight * 0.7; 
                         
                         if(x < 0) x = 0;
@@ -451,44 +460,59 @@
 
                         if (rectChoice.x >= 0 && rectChoice.y >= 0 && rectChoice.x + rectChoice.width <= thresh.cols && rectChoice.y + rectChoice.height <= thresh.rows) {
                             let choiceRoi = thresh.roi(rectChoice);
-                            let blackPixels = cv.countNonZero(choiceRoi);
+                            let blackPixels = cv.countNonZero(choiceRoi); // حساب كمية الحبر
 
                             if (blackPixels > maxBlackPixels) {
                                 maxBlackPixels = blackPixels;
                                 selectedChoice = c;
                             }
                             choiceRoi.delete();
+                            
+                            // رسم مربع أحمر خفيف لكل دائرة كدليل بصري
+                            cv.rectangle(proofImg, new cv.Point(rectChoice.x, rectChoice.y), new cv.Point(rectChoice.x + rectChoice.width, rectChoice.y + rectChoice.height), new cv.Scalar(255, 0, 0, 100), 1);
                         }
                     }
 
-                    // ميزة الفراغات: إذا كانت كثافة الحبر أقل من 15% فالسؤال لم يُظلل (يأخذ صفر)
-                    let bubbleArea = segmentWidth * (rowHeight * 0.7);
-                    if (maxBlackPixels < (bubbleArea * 0.15)) {
-                        selectedChoice = -1; 
+                    // رادار الفراغات: إذا كان الحبر أقل من 20%، فهذا يعني أن الطالب لم يظلل (نعطيه صفر)
+                    let bubbleArea = (segmentWidth * 0.8) * (rowHeight * 0.7);
+                    if (maxBlackPixels < (bubbleArea * 0.20)) {
+                        selectedChoice = -1; // سؤال متروك
                     }
 
                     detectedAnswers.push(selectedChoice);
+
+                    // رسم مربع أخضر صلب فوق الدائرة التي اختارها الطالب أو النظام
+                    if (selectedChoice !== -1) {
+                        let finalX = (startX + colWidth) - ((selectedChoice + 1.8) * segmentWidth);
+                        let finalY = startY + (rowHeight * 0.15);
+                        cv.rectangle(proofImg, new cv.Point(finalX, finalY), new cv.Point(finalX + (segmentWidth * 0.8), finalY + (rowHeight * 0.7)), new cv.Scalar(0, 255, 0, 255), 3);
+                    }
                 }
 
-                // رسم النتيجة على الشاشة للمعلم
-                cv.imshow('canvasOutput', warped);
+                // عرض دليل المطابقة في شاشة النتائج
+                cv.imshow('proofCanvas', proofImg);
                 
                 // تنظيف الذاكرة
                 src.delete(); gray.delete(); blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete();
-                paperContour.delete(); srcTri.delete(); dstTri.delete(); M.delete(); warped.delete(); thresh.delete();
+                paperContour.delete(); srcTri.delete(); dstTri.delete(); M.delete(); warped.delete(); thresh.delete(); proofImg.delete();
                 
                 loadingOverlay.style.display = 'none';
 
                 setTimeout(() => {
                     if(isWaitingForAnswerKey) {
-                        // حفظ الإجابات المصورة كنموذج
+                        // وضع "تصوير النموذج"
                         correctAnswers = detectedAnswers; 
                         localStorage.setItem('omr_correct_answers', JSON.stringify(correctAnswers));
-                        alert("✅ تم قراءة النموذج وحفظه بنجاح! يمكنك الآن تصحيح أوراق الطلاب.");
+                        alert("✅ تم قراءة النموذج وحفظه بنجاح! راجع صورة الإثبات للتأكد. يمكنك الآن بدء تصحيح أوراق الطلاب.");
+                        
+                        document.getElementById('cameraContainer').style.display = 'none';
+                        document.getElementById('resultsCard').style.display = 'block';
+                        document.getElementById('resScore').innerText = "نموذج";
+                        document.getElementById('resPercentage').innerText = "الإجابة";
                         isWaitingForAnswerKey = false;
-                        startInAppCamera(); 
+                        
                     } else {
-                        // حساب الدرجة الفعلية للطالب
+                        // وضع "تصحيح ورقة الطالب"
                         for(let q=0; q < qCount; q++){
                             if (detectedAnswers[q] !== -1 && detectedAnswers[q] === correctAnswers[q]) {
                                 finalScore++;
@@ -510,11 +534,11 @@
                 console.error(err);
                 alert("⚠️ تعذر التصحيح! تأكد من إظهار (الإطار الأسود) كاملاً ومستقيماً تحت إضاءة جيدة.");
                 loadingOverlay.style.display = 'none';
-                // حل اختفاء الأزرار: إعادة إظهار زر الالتقاط والكاميرا للتمكن من المحاولة مرة أخرى
+                
+                // إعادة الأزرار في حال الفشل
                 document.getElementById('videoElement').style.display = 'block';
                 document.getElementById('takePhotoBtn').style.display = 'block';
                 document.getElementById('canvasOutput').style.display = 'none';
-                startInAppCamera(); 
             }
         }
 
