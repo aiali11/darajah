@@ -54,6 +54,7 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
+        /* --- إعدادات الطباعة --- */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
@@ -71,7 +72,7 @@
             .student-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 18px; font-weight: bold;}
             .student-info div { flex: 1; text-align: right; }
             
-            .omr-scanner-box { border: 4px solid #000; border-radius: 10px; margin-top: 15px; height: 550px; position: relative; box-sizing: border-box; padding: 0; background-color: #fff;}
+            .omr-scanner-box { border: 4px solid #000; border-radius: 0px; margin-top: 15px; height: 550px; position: relative; box-sizing: border-box; padding: 0; background-color: #fff;}
             .questions-grid { display: grid; grid-template-columns: 50% 50%; width: 100%; height: 100%; box-sizing: border-box;}
             .question-row { display: grid; align-items: center; justify-items: center; direction: rtl; width: 100%; height: 100%; }
             .question-num { font-weight: bold; font-size: 16px; }
@@ -183,7 +184,7 @@
 
     <div id="cameraContainer">
         <div class="camera-header">
-            <div class="camera-instruction" id="cameraInstruction">📝 طابق إطار الأسئلة مع المربع</div>
+            <div class="camera-instruction" id="cameraInstruction">📝 طابق الإطار الأسود مع المربع المتقطع</div>
             <button class="btn-flash" id="flashBtn" title="تشغيل الكشاف">💡</button>
         </div>
         
@@ -354,7 +355,7 @@
             if(isWaitingForAnswerKey) {
                 cameraInstruction.innerHTML = "📸 صور <b>نموذج الإجابة</b>";
             } else {
-                cameraInstruction.innerHTML = "📝 طابق إطار الأسئلة مع المربع المتقطع";
+                cameraInstruction.innerHTML = "📝 طابق الإطار الأسود مع المربع المتقطع";
             }
 
             try {
@@ -402,67 +403,70 @@
             setTimeout(processRealOMR, 100);
         });
 
+        // --- محرك التصحيح القاطع (مدمج بنظام الطوارئ الإجباري) ---
         function processRealOMR() {
             try {
                 let src = cv.imread(canvasOutput);
                 let gray = new cv.Mat();
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-                let enhanced = new cv.Mat();
-                gray.convertTo(enhanced, -1, 1.2, -20); 
+                // استخدام Adaptive Thresholding لاستخراج الأشكال بوضوح متجاهلاً الظلال
+                let threshBox = new cv.Mat();
+                cv.adaptiveThreshold(gray, threshBox, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
 
-                let blurred = new cv.Mat();
-                cv.GaussianBlur(enhanced, blurred, new cv.Size(7, 7), 0); 
-
-                let edges = new cv.Mat();
-                cv.Canny(blurred, edges, 40, 150); 
-
-                let M_dilate = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
-                cv.dilate(edges, edges, M_dilate);
+                let M_dilate = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5));
+                cv.dilate(threshBox, threshBox, M_dilate);
 
                 let contours = new cv.MatVector();
                 let hierarchy = new cv.Mat();
                 
-                // هنا التغيير الجذري لحل مشكلة صورتك بالكامل: RETR_LIST بدلاً من RETR_EXTERNAL
-                cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+                // البحث في الأشكال الخارجية
+                cv.findContours(threshBox, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
-                let validContours = [];
+                let maxArea = 0;
+                let bestCnt = null;
+
+                // البحث عن أكبر مساحة منطقية
                 for (let i = 0; i < contours.size(); ++i) {
                     let cnt = contours.get(i);
                     let area = cv.contourArea(cnt);
                     
-                    if (area > (src.cols * src.rows * 0.05)) {
-                        let peri = cv.arcLength(cnt, true);
-                        let approx = new cv.Mat();
-                        // نسبة تقريب ذكية للزوايا
-                        cv.approxPolyDP(cnt, approx, 0.05 * peri, true);
-                        if (approx.rows === 4) {
-                            validContours.push({ contour: approx.clone(), area: area });
+                    // يجب أن يكون الإطار كبير (أكبر من 10% من الشاشة) ولا يغطي الشاشة كلها
+                    if (area > (src.cols * src.rows * 0.10) && area < (src.cols * src.rows * 0.95)) {
+                        if (area > maxArea) {
+                            maxArea = area;
+                            bestCnt = cnt;
                         }
-                        approx.delete();
                     }
                 }
 
-                let paperContour = null;
-                // نأخذ أكبر مربع بأربع زوايا داخل الصورة (اللي هو الإطار الأسود)
-                if (validContours.length > 0) {
-                    validContours.sort((a, b) => b.area - a.area);
-                    paperContour = validContours[0].contour;
-                    for (let i = 1; i < validContours.length; i++) {
-                        validContours[i].contour.delete();
+                let ptsArray = [];
+
+                // إذا وجدنا الإطار، نأخذ زواياه
+                if (bestCnt) {
+                    for (let i = 0; i < bestCnt.rows; i++) {
+                        ptsArray.push({ x: bestCnt.data32S[i * 2], y: bestCnt.data32S[i * 2 + 1] });
                     }
+                } else {
+                    // 🚨 نظام الطوارئ الإجباري (Fallback) 🚨
+                    // إذا فشل في إيجاد الإطار (بسبب مفرش، ظل، أو تشويش)، سيقوم بقص المساحة التي حددها المعلم بنفسه!
+                    // هذه إحداثيات (المربع المتقطع الأصفر) الظاهر في الكاميرا:
+                    console.log("استخدام نظام التوجيه الإجباري");
+                    let w = src.cols;
+                    let h = src.rows;
+                    ptsArray = [
+                        { x: w * 0.05, y: h * 0.15 }, // أعلى اليسار
+                        { x: w * 0.95, y: h * 0.15 }, // أعلى اليمين
+                        { x: w * 0.95, y: h * 0.85 }, // أسفل اليمين
+                        { x: w * 0.05, y: h * 0.85 }  // أسفل اليسار
+                    ];
                 }
 
-                if (!paperContour) {
-                    throw new Error("لم يتم العثور على الإطار");
-                }
-
-                let pts = [];
-                for (let i = 0; i < 4; i++) { pts.push({ x: paperContour.data32S[i * 2], y: paperContour.data32S[i * 2 + 1] }); }
-                pts.sort((a, b) => a.y - b.y); 
-                let top = [pts[0], pts[1]].sort((a, b) => a.x - b.x); 
-                let bottom = [pts[2], pts[3]].sort((a, b) => a.x - b.x);
-                let tl = top[0], tr = top[1], bl = bottom[0], br = bottom[1];
+                // استخراج الزوايا الأربع القصوى لتعديل المنظور
+                let tl = ptsArray.reduce((min, p) => (p.x + p.y < min.x + min.y ? p : min), ptsArray[0]);
+                let br = ptsArray.reduce((max, p) => (p.x + p.y > max.x + max.y ? p : max), ptsArray[0]);
+                let tr = ptsArray.reduce((max, p) => (p.x - p.y > max.x - max.y ? p : max), ptsArray[0]);
+                let bl = ptsArray.reduce((min, p) => (p.x - p.y < min.x - min.y ? p : min), ptsArray[0]);
 
                 let widthA = Math.hypot(br.x - bl.x, br.y - bl.y);
                 let widthB = Math.hypot(tr.x - tl.x, tr.y - tl.y);
@@ -480,6 +484,7 @@
                 let warped = new cv.Mat();
                 cv.warpPerspective(gray, warped, M, dsize);
 
+                // فلتر قراءة الدوائر
                 let thresh = new cv.Mat();
                 cv.adaptiveThreshold(warped, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
 
@@ -531,6 +536,7 @@
                         }
                     }
 
+                    // رادار الفراغات
                     let bubbleArea = roiSize * roiSize;
                     if (maxBlackPixels < (bubbleArea * 0.20)) {
                         selectedChoice = -1; 
@@ -551,8 +557,8 @@
 
                 cv.imshow('proofCanvas', proofImg);
                 
-                src.delete(); gray.delete(); enhanced.delete(); blurred.delete(); edges.delete(); M_dilate.delete(); contours.delete(); hierarchy.delete();
-                paperContour.delete(); srcTri.delete(); dstTri.delete(); M.delete(); warped.delete(); thresh.delete(); proofImg.delete();
+                src.delete(); gray.delete(); threshBox.delete(); M_dilate.delete(); contours.delete(); hierarchy.delete();
+                srcTri.delete(); dstTri.delete(); M.delete(); warped.delete(); thresh.delete(); proofImg.delete();
                 
                 loadingOverlay.style.display = 'none';
 
@@ -588,7 +594,7 @@
 
             } catch (err) {
                 console.error(err);
-                alert("⚠️ تعذر التعرف على إطار الأسئلة. تأكد أن المربع الأسود داخل الورقة ظاهر بالكامل.");
+                alert("حدث خطأ غير متوقع. يرجى تحديث الصفحة والمحاولة مرة أخرى.");
                 loadingOverlay.style.display = 'none';
                 
                 document.getElementById('videoElement').style.display = 'block';
