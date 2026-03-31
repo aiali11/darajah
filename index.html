@@ -15,7 +15,6 @@
         input[type="number"], input[type="text"], select { width: 100%; padding: 12px; border: 2px solid #ecf0f1; border-radius: 8px; box-sizing: border-box; font-size: 15px; transition: 0.3s;}
         input:focus, select:focus { border-color: #16a085; outline: none; }
         
-        /* تصميم مربع الاختيار (Checkbox) */
         .checkbox-group { display: flex; align-items: center; margin-bottom: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;}
         .checkbox-group input[type="checkbox"] { width: 20px; height: 20px; margin-left: 10px; cursor: pointer; }
         .checkbox-group label { margin-bottom: 0; cursor: pointer; color: #2980b9; }
@@ -37,9 +36,14 @@
         .method-box h4 { margin: 0 0 10px 0; color: #2c3e50; }
         .note { background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; font-size: 13px; margin-top: 10px; border-right: 4px solid #ffeeba; line-height: 1.5; }
 
+        /* تعديلات حاسمة لحل مشكلة الشاشة السوداء في الجوال */
         #cameraContainer { display: none; position: relative; width: 100%; max-width: 480px; margin: 0 auto; }
-        #videoElement { width: 100%; border-radius: 15px; display: none; }
-        #canvasOutput { width: 100%; border-radius: 15px; border: 4px solid #2c3e50; box-shadow: 0 10px 20px rgba(0,0,0,0.2); background-color: #000; }
+        
+        /* جعل الفيديو بحجم نقطة لكي يستمر في العمل في الخلفية بدون أن يستهلك مساحة */
+        #videoElement { position: absolute; width: 1px; height: 1px; opacity: 0; z-index: -10; pointer-events: none; }
+        
+        #canvasOutput { width: 100%; max-width: 100%; border-radius: 15px; border: 4px solid #2c3e50; box-shadow: 0 10px 20px rgba(0,0,0,0.2); background-color: #000; display: block; }
+        
         .camera-status { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 8px 15px; border-radius: 20px; font-size: 14px; font-weight: bold; z-index: 10; width: 85%; text-align: center;}
         
         .btn-capture { background-color: #f1c40f; color: #2c3e50; font-size: 18px; padding: 18px; border-radius: 50px; box-shadow: 0 4px 15px rgba(241, 196, 15, 0.4); display: none; margin-top: 15px; width: 100%; }
@@ -53,40 +57,28 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* --- إعدادات الطباعة الاحترافية --- */
         #printableSheet { display: none; }
         
         @media print {
             @page { size: A4; margin: 0mm; }
-            
             body { background-color: white; margin: 0; padding: 0; }
             .card, h2, .subtitle, #cameraContainer, #resultsCard, .btn-capture { display: none !important; }
-            
             #printableSheet { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; padding: 15mm 20mm; box-sizing: border-box; }
-            
-            /* الترويسة الرسمية الجديدة الموزونة بالملي */
             .print-header-container { display: flex; width: 100%; align-items: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 15px; }
             .logo-box { flex: 1; text-align: right; }
             .logo-box img { max-width: 160px; height: auto; }
             .title-box { flex: 2; text-align: center; }
-            .empty-box { flex: 1; } /* مساحة فارغة يسار لموازنة الشعار يمين */
-
+            .empty-box { flex: 1; } 
             .school-name { font-size: 20px; font-weight: bold; margin-bottom: 10px; color: #222;}
             .test-info { font-size: 16px; font-weight: bold; color: #444; }
-
             .instruction-text { text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 15px; color: #333;}
-
             .student-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 18px; font-weight: bold;}
             .student-info div { flex: 1; text-align: right; }
-
             .omr-scanner-box { border: 4px solid #000; padding: 25px; border-radius: 10px; margin-top: 15px; min-height: 520px; position: relative;}
-            
             .questions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
             .question-row { display: flex; align-items: center; font-size: 16px; justify-content: center;}
             .question-num { width: 40px; font-weight: bold; text-align: right;}
             .choice-bubble { width: 28px; height: 28px; border: 2px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 6px; font-size: 13px; }
-
-            /* تصميم التوقيعات أسفل الورقة */
             .print-footer { display: flex; justify-content: space-between; margin-top: 30px; font-size: 16px; font-weight: bold; }
             .sig-block { flex: 1; }
             .sig-left { text-align: left; }
@@ -129,7 +121,6 @@
     </div>
 
     <div class="card" id="settingsPanel">
-        
         <h3 style="margin-top:0; border-bottom: 1px solid #eee; padding-bottom: 10px;">أولاً: بيانات ترويسة الاختبار</h3>
         <div class="input-group">
             <label>اسم المدرسة:</label>
@@ -152,7 +143,7 @@
 
         <div class="checkbox-group">
             <input type="checkbox" id="addPrincipalCheck">
-            <label for="addPrincipalCheck">إضافة خانة توقيع مدير/ة المدرسة (أسفل اليسار)</label>
+            <label for="addPrincipalCheck">إضافة خانة توقيع مدير/ة المدرسة</label>
         </div>
         <div class="input-group" id="principalInputDiv" style="display: none;">
             <input type="text" id="principalName" placeholder="اكتب اسم مدير/ة المدرسة هنا...">
@@ -189,7 +180,7 @@
 
     <div id="cameraContainer">
         <div class="camera-status" id="camStatusText">جاري تشغيل الكاميرا...</div>
-        <video id="videoElement" autoplay playsinline></video>
+        <video id="videoElement" autoplay playsinline muted></video>
         <canvas id="canvasOutput"></canvas>
         <button class="btn btn-capture" id="captureBtn">✨ التقاط وتصحيح ✨</button>
     </div>
@@ -205,7 +196,8 @@
                     المادة: <span id="printSubject"></span> | الصف: <span id="printGrade"></span>
                 </div>
             </div>
-            <div class="empty-box"></div> </div>
+            <div class="empty-box"></div> 
+        </div>
 
         <div class="instruction-text">نموذج إجابة الاختبار - يرجى تظليل الدائرة بالكامل</div>
         
@@ -245,7 +237,6 @@
         let cap;
         let scanInterval;
 
-        // إظهار وإخفاء حقل اسم المدير بناءً على التشيك بوكس
         document.getElementById('addPrincipalCheck').addEventListener('change', function() {
             document.getElementById('principalInputDiv').style.display = this.checked ? 'block' : 'none';
         });
@@ -308,17 +299,14 @@
             document.getElementById('resultsCard').style.display = 'none';
             document.getElementById('cameraContainer').style.display = 'block';
             camStatusText.innerText = "وجّه الكاميرا نحو ورقة الطالب";
-            camStatusText.style.background = "rgba(0,0,0,0.7)";
+            camStatusText.style.background = "rgba(0,0,0,0.8)";
             startLiveScan(); 
         });
 
         function generatePrintSheet() {
-            // نقل البيانات للترويسة
             document.getElementById('printSchool').innerText = document.getElementById('schoolName').value || 'اسم المدرسة';
             document.getElementById('printSubject').innerText = document.getElementById('subjectName').value || '........';
             document.getElementById('printGrade').innerText = document.getElementById('gradeName').value || '........';
-            
-            // نقل بيانات التوقيع للأسفل
             document.getElementById('printTeacherFooter').innerText = document.getElementById('teacherName').value || '........';
             
             if (document.getElementById('addPrincipalCheck').checked) {
@@ -346,6 +334,12 @@
         async function startCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: {ideal: 1280}, height: {ideal: 720} }, audio: false });
+                
+                // حل مشكلة الجوالات بشكل نهائي بفرض الإعدادات برمجياً
+                video.setAttribute('autoplay', '');
+                video.setAttribute('muted', '');
+                video.setAttribute('playsinline', '');
+                video.muted = true;
                 video.srcObject = stream;
                 
                 document.getElementById('settingsPanel').style.display = 'none';
@@ -361,16 +355,23 @@
                     camStatusText.style.background = "rgba(0,0,0,0.8)";
                 }
                 
-                video.addEventListener('canplay', () => {
-                    if (!streaming) {
-                        streaming = true;
-                        canvasOutput.width = video.videoWidth;
-                        canvasOutput.height = video.videoHeight;
-                        cap = new cv.VideoCapture(video);
-                        startLiveScan();
-                    }
+                // تشغيل الفيديو إجبارياً وانتظار تحميل الأبعاد
+                video.play().then(() => {
+                    const checkReady = setInterval(() => {
+                        if (video.videoWidth > 0 && !streaming) {
+                            clearInterval(checkReady);
+                            streaming = true;
+                            canvasOutput.width = video.videoWidth;
+                            canvasOutput.height = video.videoHeight;
+                            cap = new cv.VideoCapture(video);
+                            startLiveScan();
+                        }
+                    }, 100);
+                }).catch(e => {
+                    alert("الرجاء الضغط على الشاشة للسماح بتشغيل الكاميرا.");
                 });
-            } catch (err) { alert("تعذر الوصول للكاميرا. يرجى التأكد من الصلاحيات."); }
+
+            } catch (err) { alert("تعذر الوصول للكاميرا. يرجى التأكد من إعطاء الصلاحية من إعدادات المتصفح."); }
         }
 
         function startLiveScan() {
