@@ -54,35 +54,30 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* --- إعدادات الطباعة --- */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
             body { background-color: white; margin: 0; padding: 0; }
             .card, h2, .subtitle, #cameraContainer, #resultsCard { display: none !important; }
             #printableSheet { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; padding: 15mm 20mm; box-sizing: border-box; }
-            .print-header-container { display: flex; width: 100%; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 10px; }
+            .print-header-container { display: flex; width: 100%; align-items: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 15px; }
             .logo-box { flex: 1; text-align: right; }
-            .logo-box img { max-width: 150px; height: auto; }
+            .logo-box img { max-width: 160px; height: auto; }
             .title-box { flex: 2; text-align: center; }
             .empty-box { flex: 1; } 
-            .school-name { font-size: 20px; font-weight: bold; margin-bottom: 8px; color: #222;}
-            .test-info { font-size: 15px; font-weight: bold; color: #444; }
-            .instruction-text { text-align: center; font-weight: bold; font-size: 15px; margin-bottom: 10px; color: #333;}
+            .school-name { font-size: 20px; font-weight: bold; margin-bottom: 10px; color: #222;}
+            .test-info { font-size: 16px; font-weight: bold; color: #444; }
+            .instruction-text { text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 15px; color: #333;}
             .student-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 18px; font-weight: bold;}
             .student-info div { flex: 1; text-align: right; }
             
-            .keys-header-container { display: grid; grid-template-columns: 50% 50%; width: 100%; margin-bottom: 5px; font-weight: bold; font-size: 16px;}
-            .key-col { display: grid; align-items: center; justify-items: center; direction: rtl; width: 100%; }
-            .key-letter { display: flex; align-items: center; justify-content: center; }
-            
-            .omr-scanner-box { border: 4px solid #000; border-radius: 0px; height: 550px; position: relative; box-sizing: border-box; padding: 0; background-color: #fff;}
+            .omr-scanner-box { border: 4px solid #000; border-radius: 0px; margin-top: 15px; height: 550px; position: relative; box-sizing: border-box; padding: 0; background-color: #fff;}
             .questions-grid { display: grid; grid-template-columns: 50% 50%; width: 100%; height: 100%; box-sizing: border-box;}
             .question-row { display: grid; align-items: center; justify-items: center; direction: rtl; width: 100%; height: 100%; }
             .question-num { font-weight: bold; font-size: 16px; }
-            .choice-bubble { width: 26px; height: 26px; border: 2px solid #000; border-radius: 50%; background-color: white; display: flex; align-items: center; justify-content: center; box-sizing: border-box;}
+            .choice-bubble { width: 26px; height: 26px; border: 2px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; box-sizing: border-box;}
             
-            .print-footer { display: flex; justify-content: space-between; margin-top: 25px; font-size: 16px; font-weight: bold; }
+            .print-footer { display: flex; justify-content: space-between; margin-top: 30px; font-size: 16px; font-weight: bold; }
             .sig-block { flex: 1; }
             .sig-left { text-align: left; }
             .sig-right { text-align: right; }
@@ -182,7 +177,7 @@
 
     <div class="card" id="answerKeyPanel">
         <h3 style="text-align: center; color: #27ae60; margin-top:0;">إدخال نموذج الإجابة يدوياً</h3>
-        <p style="font-size: 12px; color: #e74c3c; margin-top: -10px;">تنبيه: تأكد من تغيير الإجابات أدناه لتطابق نموذجك الصحيح.</p>
+        <p style="font-size: 12px; color: #e74c3c; margin-top: -10px;">تنبيه: تأكد من تغيير الإجابات، إذا تركتها بدون تغيير سيتم حفظها كلها كخيار (أ).</p>
         <div id="keyForm"></div>
         <button class="btn btn-save" id="saveKeyAndStartBtn">💾 حفظ وبدء التصحيح</button>
     </div>
@@ -223,8 +218,6 @@
             <div style="text-align: left;">الدرجة: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / <span id="printTotal"></span></div>
         </div>
         
-        <div class="keys-header-container" id="keysHeaderContainer"></div>
-
         <div class="omr-scanner-box">
             <div class="questions-grid" id="questionsContainer"></div>
         </div>
@@ -410,7 +403,7 @@
             setTimeout(processRealOMR, 100);
         });
 
-        // --- محرك التصحيح القاطع (استعادة RETR_LIST + تقنية البؤرة المركزية) ---
+        // --- محرك التصحيح الماسي (Foolproof OMR Engine) ---
         function processRealOMR() {
             try {
                 let src = cv.imread(canvasOutput);
@@ -435,7 +428,7 @@
                 let contours = new cv.MatVector();
                 let hierarchy = new cv.Mat();
                 
-                // 🚨 استعادة RETR_LIST لاختراق الورقة والبحث عن الإطار الأسود الداخلي فقط 🚨
+                // 🚨 تقنية العمارة (اختراق الورقة) للبحث عن الإطار الأسود الداخلي فقط 🚨
                 cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
                 let maxArea = 0;
@@ -444,12 +437,12 @@
                 for (let i = 0; i < contours.size(); ++i) {
                     let cnt = contours.get(i);
                     let area = cv.contourArea(cnt);
-                    // يجب أن يكون الإطار بحجم معقول داخل المربع المقصوص
                     if (area > (guideRect.width * guideRect.height * 0.05)) {
                         let peri = cv.arcLength(cnt, true);
                         let approx = new cv.Mat();
                         cv.approxPolyDP(cnt, approx, 0.04 * peri, true);
                         
+                        // نأخذ أكبر شكل له من 4 إلى 10 زوايا (عشان الانحناءات)
                         if (approx.rows >= 4 && approx.rows <= 10 && area > maxArea) {
                             maxArea = area;
                             if(bestCnt) bestCnt.delete();
@@ -468,6 +461,7 @@
                         ptsArray.push({ x: bestCnt.data32S[i * 2], y: bestCnt.data32S[i * 2 + 1] });
                     }
 
+                    // تقنية النقاط القصوى الأربعة (TopLeft, TopRight, etc.)
                     let tl = ptsArray.reduce((min, p) => (p.x + p.y < min.x + min.y ? p : min), ptsArray[0]);
                     let br = ptsArray.reduce((max, p) => (p.x + p.y > max.x + max.y ? p : max), ptsArray[0]);
                     let tr = ptsArray.reduce((max, p) => (p.x - p.y > max.x - max.y ? p : max), ptsArray[0]);
@@ -494,6 +488,7 @@
                 }
 
                 // 2. فلترة الورقة لقراءة الدوائر
+                // تم تغيير الفلتر إلى Adaptive Gauss لقراءة القلم الرصاص والحبر النحيف بدقة
                 let thresh = new cv.Mat();
                 cv.adaptiveThreshold(warped, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
 
@@ -530,8 +525,9 @@
                         let vx = Math.floor(centerX - (visualRoiSize / 2));
                         let vy = Math.floor(rowCenterY - (visualRoiSize / 2));
 
-                        // 🚨 تقنية البؤرة المركزية 🚨
-                        // نفحص فقط 40% من قلب الدائرة الأبيض، لنتجاهل الخط الأسود المحيط بها تماماً
+                        // 🚨 تقنية البؤرة المركزية (Central ROI) 🚨
+                        // نقرأ فقط 40% من قلب الدائرة الأبيض، لنتجاهل الخط الأسود المحيط بها تماماً.
+                        // هذا هو الحل الجذري لمنع ظلم الطلاب بسبب حدود الدائرة أو التشويش.
                         let coreSize = visualRoiSize * 0.40;
                         let x = Math.floor(centerX - (coreSize / 2));
                         let y = Math.floor(rowCenterY - (coreSize / 2));
@@ -546,14 +542,16 @@
                             let totalPixels = w_roi * h_roi;
                             let fillPercentage = blackPixels / totalPixels;
 
-                            // بما أننا نفحص القلب الأبيض الصافي، أي حبر بنسبة 15% فما فوق يعتبر إجابة مؤكدة
+                            // بما أننا نفحص القلب الأبيض الصافي، أي حبر الطالب سيعطي نسبة عالية فوراً (فوق 15%)
                             if (fillPercentage > 0.15) {
                                 selectedChoicesIndices.push(c);
+                                // رسم إطار أخضر (مظلل مقبول)
                                 cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(0, 255, 0, 255), 3);
                             } else if (fillPercentage > 0.05) {
+                                // رسم إطار أصفر (غبار أو تشويش - سيتم تجاهله)
                                 cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(255, 255, 0, 255), 1);
                             } else {
-                                // فارغة تماماً
+                                // رسم إطار أحمر خفيف (فارغ تماماً)
                                 cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(255, 0, 0, 100), 1);
                             }
                             
@@ -564,14 +562,15 @@
                     if (selectedChoicesIndices.length === 1) {
                         detectedAnswers.push(selectedChoicesIndices[0]);
                     } else if (selectedChoicesIndices.length > 1) {
-                        detectedAnswers.push(-2); 
+                        detectedAnswers.push(-2); // تعدد التظليل (صفر)
                     } else {
-                        detectedAnswers.push(-1); 
+                        detectedAnswers.push(-1); // فارغ (صفر)
                     }
                 }
 
                 cv.imshow('proofCanvas', proofImg);
                 
+                // تنظيف الذاكرة
                 src.delete(); gray.delete(); cropped.delete(); blurred.delete(); edges.delete(); M_dilate.delete(); 
                 contours.delete(); hierarchy.delete(); warped.delete(); thresh.delete(); proofImg.delete();
                 
@@ -591,6 +590,7 @@
                         
                     } else {
                         for(let q=0; q < qCount; q++){
+                            // السؤال يُحسب صح فقط إذا اختار الطالب خياراً واحداً وكان مطابقاً للنموذج
                             if (detectedAnswers[q] >= 0 && detectedAnswers[q] === correctAnswers[q]) {
                                 finalScore++;
                             }
@@ -609,7 +609,7 @@
 
             } catch (err) {
                 console.error(err);
-                alert("⚠️ حدث خطأ أثناء التصحيح. تأكد من إضاءة الورقة جيداً.");
+                alert("⚠️ حدث خطأ أثناء التصحيح. تأكد من إضاءة الورقة جيداً وإظهار الإطار الأسود كاملاً.");
                 loadingOverlay.style.display = 'none';
                 document.getElementById('videoElement').style.display = 'block';
                 cameraGuide.style.display = 'block';
@@ -634,12 +634,6 @@
             qCount = parseInt(document.getElementById('numQuestions').value);
             cCount = parseInt(document.getElementById('numChoices').value);
             document.getElementById('printTotal').innerText = qCount;
-
-            const keysHeader = document.getElementById('keysHeaderContainer');
-            let headerHtml = `<div class="key-col" style="grid-template-columns: 20% repeat(${cCount}, ${80/cCount}%);"><div class="question-num"></div>`;
-            for (let j = 0; j < cCount; j++) { headerHtml += `<div class="key-letter">${arabicLetters[j]}</div>`; }
-            headerHtml += `</div>`;
-            keysHeader.innerHTML = headerHtml + headerHtml;
 
             const container = document.getElementById('questionsContainer');
             container.innerHTML = '';
