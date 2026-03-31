@@ -54,31 +54,38 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* --- إعدادات الطباعة --- */
+        /* --- إعدادات الطباعة (النسخة العبقرية) --- */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
             body { background-color: white; margin: 0; padding: 0; }
             .card, h2, .subtitle, #cameraContainer, #resultsCard { display: none !important; }
             #printableSheet { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; padding: 15mm 20mm; box-sizing: border-box; }
-            .print-header-container { display: flex; width: 100%; align-items: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 15px; }
+            .print-header-container { display: flex; width: 100%; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 10px; }
             .logo-box { flex: 1; text-align: right; }
-            .logo-box img { max-width: 160px; height: auto; }
+            .logo-box img { max-width: 150px; height: auto; }
             .title-box { flex: 2; text-align: center; }
             .empty-box { flex: 1; } 
-            .school-name { font-size: 20px; font-weight: bold; margin-bottom: 10px; color: #222;}
-            .test-info { font-size: 16px; font-weight: bold; color: #444; }
-            .instruction-text { text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 15px; color: #333;}
+            .school-name { font-size: 20px; font-weight: bold; margin-bottom: 8px; color: #222;}
+            .test-info { font-size: 15px; font-weight: bold; color: #444; }
+            .instruction-text { text-align: center; font-weight: bold; font-size: 15px; margin-bottom: 10px; color: #333;}
             .student-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 18px; font-weight: bold;}
             .student-info div { flex: 1; text-align: right; }
             
-            .omr-scanner-box { border: 4px solid #000; border-radius: 0px; margin-top: 15px; height: 550px; position: relative; box-sizing: border-box; padding: 0; background-color: #fff;}
+            /* ترويسة الحروف (مفاتيح الأعمدة) اللي اقترحتها */
+            .keys-header-container { display: grid; grid-template-columns: 50% 50%; width: 100%; margin-bottom: 5px; font-weight: bold; font-size: 16px;}
+            .key-col { display: grid; align-items: center; justify-items: center; direction: rtl; width: 100%; }
+            .key-letter { display: flex; align-items: center; justify-content: center; }
+            
+            .omr-scanner-box { border: 4px solid #000; border-radius: 0px; height: 550px; position: relative; box-sizing: border-box; padding: 0; background-color: #fff;}
             .questions-grid { display: grid; grid-template-columns: 50% 50%; width: 100%; height: 100%; box-sizing: border-box;}
             .question-row { display: grid; align-items: center; justify-items: center; direction: rtl; width: 100%; height: 100%; }
             .question-num { font-weight: bold; font-size: 16px; }
-            .choice-bubble { width: 26px; height: 26px; border: 2px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; box-sizing: border-box;}
             
-            .print-footer { display: flex; justify-content: space-between; margin-top: 30px; font-size: 16px; font-weight: bold; }
+            /* الدوائر الآن فارغة تماماً لزيادة دقة الذكاء الاصطناعي بشكل جنوني */
+            .choice-bubble { width: 26px; height: 26px; border: 2px solid #000; border-radius: 50%; background-color: white; display: flex; align-items: center; justify-content: center; box-sizing: border-box;}
+            
+            .print-footer { display: flex; justify-content: space-between; margin-top: 25px; font-size: 16px; font-weight: bold; }
             .sig-block { flex: 1; }
             .sig-left { text-align: left; }
             .sig-right { text-align: right; }
@@ -219,6 +226,8 @@
             <div style="text-align: left;">الدرجة: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / <span id="printTotal"></span></div>
         </div>
         
+        <div class="keys-header-container" id="keysHeaderContainer"></div>
+
         <div class="omr-scanner-box">
             <div class="questions-grid" id="questionsContainer"></div>
         </div>
@@ -404,7 +413,7 @@
             setTimeout(processRealOMR, 100);
         });
 
-        // --- محرك التصحيح (بتقنية البؤرة المركزية لتجاهل الحدود والتشويش) ---
+        // --- محرك التصحيح القاطع المبني على (الدوائر الفارغة - فكرتك) ---
         function processRealOMR() {
             try {
                 let src = cv.imread(canvasOutput);
@@ -472,7 +481,7 @@
                     warped = cropped.clone();
                 }
 
-                // 🚨 تغيير الفلتر إلى Otsu الصارم لإزالة تشويش الورقة تماماً والإبقاء على الحبر فقط
+                // فلتر صارم جداً للدوائر
                 let tempBlur = new cv.Mat();
                 cv.GaussianBlur(warped, tempBlur, new cv.Size(5, 5), 0);
                 let thresh = new cv.Mat();
@@ -506,13 +515,13 @@
                         let percentFromRight = 0.20 + ((c + 0.5) * (0.80 / cCount));
                         let centerX = colRightEdge - (colW * percentFromRight);
 
-                        // المربع الخارجي (للرسم فقط)
                         let visualRoiSize = Math.min(colW * 0.12, rowH * 0.8);
                         let vx = Math.floor(centerX - (visualRoiSize / 2));
                         let vy = Math.floor(rowCenterY - (visualRoiSize / 2));
 
-                        // 🚨 المربع الداخلي (البؤرة 40% فقط) لتجاهل حدود الدائرة المطبوعة 🚨
-                        let coreSize = visualRoiSize * 0.45;
+                        // 🚨 بما أن الدوائر أصبحت فارغة تماماً من الحروف 🚨
+                        // نكبر المساحة المقروءة لتصبح 60% من قلب الدائرة بدلاً من 40%، لضمان صيد القلم النحيف
+                        let coreSize = visualRoiSize * 0.60;
                         let x = Math.floor(centerX - (coreSize / 2));
                         let y = Math.floor(rowCenterY - (coreSize / 2));
                         let w_roi = Math.floor(coreSize);
@@ -526,11 +535,12 @@
                             let totalPixels = w_roi * h_roi;
                             let fillPercentage = blackPixels / totalPixels;
 
-                            // لأننا نأخذ (القلب) فقط، أي شخبطة ستغطي جزء كبير منه، والفارغ سيكون نسبة الحبر فيه قريبة من 0
-                            if (fillPercentage > 0.20) {
+                            // 🚨 بسبب خلو الدائرة من التشويش، نخفض العتبة إلى 8% فقط! 🚨
+                            // أي خط بالقلم سيتجاوز هذه النسبة بسهولة، والفراغ سيكون 0%
+                            if (fillPercentage > 0.08) {
                                 selectedChoicesIndices.push(c);
                                 cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(0, 255, 0, 255), 3);
-                            } else if (fillPercentage > 0.05) {
+                            } else if (fillPercentage > 0.02) {
                                 cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(255, 255, 0, 255), 1);
                             } else {
                                 cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(255, 0, 0, 100), 1);
@@ -597,6 +607,7 @@
             }
         }
 
+        // بناء الورقة المطبوعة بنظام "المفاتيح العلوية" والدوائر المفرغة
         function generatePrintSheet() {
             document.getElementById('printSchool').innerText = document.getElementById('schoolName').value || 'اسم المدرسة';
             document.getElementById('printSubject').innerText = document.getElementById('subjectName').value || '........';
@@ -614,12 +625,22 @@
             cCount = parseInt(document.getElementById('numChoices').value);
             document.getElementById('printTotal').innerText = qCount;
 
+            // 1. توليد ترويسة الحروف (مفاتيح الأعمدة) اللي اقترحتها
+            const keysHeader = document.getElementById('keysHeaderContainer');
+            let headerHtml = `<div class="key-col" style="grid-template-columns: 20% repeat(${cCount}, ${80/cCount}%);"><div class="question-num"></div>`;
+            for (let j = 0; j < cCount; j++) { headerHtml += `<div class="key-letter">${arabicLetters[j]}</div>`; }
+            headerHtml += `</div>`;
+            // تكرارها للعمودين
+            keysHeader.innerHTML = headerHtml + headerHtml;
+
+            // 2. توليد الأسئلة بدوائر بيضاء مفرغة تماماً
             const container = document.getElementById('questionsContainer');
             container.innerHTML = '';
             for (let i = 1; i <= qCount; i++) {
                 let rowHtml = `<div class="question-row" style="grid-template-columns: 20% repeat(${cCount}, ${80/cCount}%);">
                                <div class="question-num">${i} -</div>`;
-                for (let j = 0; j < cCount; j++) { rowHtml += `<div class="choice-bubble">${arabicLetters[j]}</div>`; }
+                // الدائرة لا تحتوي على الحرف [j]
+                for (let j = 0; j < cCount; j++) { rowHtml += `<div class="choice-bubble"></div>`; }
                 rowHtml += `</div>`;
                 container.innerHTML += rowHtml;
             }
