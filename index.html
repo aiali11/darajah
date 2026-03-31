@@ -3,132 +3,199 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>المصحح الآلي المفتوح</title>
+    <title>المصحح الآلي للاختبارات</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #f0f4f8; margin: 0; padding: 20px; color: #333; overflow-x: hidden;}
-        h2 { color: #2c3e50; margin-bottom: 5px; }
-        .subtitle { color: #7f8c8d; margin-top: 0; margin-bottom: 25px; font-size: 14px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #f4f7f6; margin: 0; padding: 20px; color: #2c3e50; overflow-x: hidden;}
+        h2 { color: #16a085; margin-bottom: 5px; font-size: 28px;}
+        .subtitle { color: #7f8c8d; margin-top: 0; margin-bottom: 25px; font-size: 15px; }
         
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.08); max-width: 450px; margin: 0 auto 20px auto; text-align: right; position: relative;}
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.05); max-width: 480px; margin: 0 auto 20px auto; text-align: right; position: relative;}
         .input-group { margin-bottom: 15px; }
-        label { font-weight: bold; display: block; margin-bottom: 8px; color: #34495e; }
-        input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #dcdde1; border-radius: 6px; box-sizing: border-box; font-size: 16px; background-color: #fdfdfd; }
+        label { font-weight: bold; display: block; margin-bottom: 8px; color: #34495e; font-size: 14px;}
+        input[type="number"], input[type="text"], select { width: 100%; padding: 12px; border: 2px solid #ecf0f1; border-radius: 8px; box-sizing: border-box; font-size: 15px; transition: 0.3s;}
+        input:focus, select:focus { border-color: #16a085; outline: none; }
         
-        .btn { padding: 14px 24px; font-size: 16px; font-weight: bold; color: #fff; border: none; border-radius: 6px; cursor: pointer; width: 100%; transition: 0.2s; margin-bottom: 10px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+
+        .btn { padding: 15px 24px; font-size: 16px; font-weight: bold; color: #fff; border: none; border-radius: 8px; cursor: pointer; width: 100%; transition: 0.2s; margin-bottom: 12px; }
         .btn:active { transform: scale(0.98); }
         .btn:disabled { background-color: #bdc3c7 !important; cursor: not-allowed; }
-        .btn-print { background-color: #3498db; margin-bottom: 20px; }
+        
+        .btn-print { background-color: #2980b9; margin-bottom: 25px; }
+        .btn-camera { background-color: #e67e22; }
         .btn-manual { background-color: #27ae60; }
-        .btn-save { background-color: #2c3e50; margin-top: 15px; }
+        .btn-save { background-color: #34495e; margin-top: 15px; }
         .btn-danger { background-color: #e74c3c; }
         .btn-resume { background-color: #8e44ad; }
-        .btn-capture { background-color: #f39c12; font-size: 18px; padding: 18px; border-radius: 50px; box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4); display: none; margin-top: 15px; }
         
-        /* تصميم شاشة الكاميرا والتحليل */
-        #cameraContainer { display: none; position: relative; width: 100%; max-width: 450px; margin: 0 auto; }
-        #videoElement { width: 100%; border-radius: 12px; display: none; }
-        #canvasOutput { width: 100%; border-radius: 12px; border: 4px solid #2c3e50; box-shadow: 0 10px 20px rgba(0,0,0,0.2); background-color: #000; }
+        .method-box { border: 2px dashed #bdc3c7; padding: 15px; border-radius: 10px; margin-bottom: 15px; background-color: #fafbfc; }
+        .method-box h4 { margin: 0 0 10px 0; color: #2c3e50; }
+        .note { background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; font-size: 13px; margin-top: 10px; border-right: 4px solid #ffeeba; line-height: 1.5; }
+
+        #cameraContainer { display: none; position: relative; width: 100%; max-width: 480px; margin: 0 auto; }
+        #videoElement { width: 100%; border-radius: 15px; display: none; }
+        #canvasOutput { width: 100%; border-radius: 15px; border: 4px solid #2c3e50; box-shadow: 0 10px 20px rgba(0,0,0,0.2); background-color: #000; }
+        .camera-status { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 8px 15px; border-radius: 20px; font-size: 14px; font-weight: bold; z-index: 10; width: 85%; text-align: center;}
+        
+        .btn-capture { background-color: #f1c40f; color: #2c3e50; font-size: 18px; padding: 18px; border-radius: 50px; box-shadow: 0 4px 15px rgba(241, 196, 15, 0.4); display: none; margin-top: 15px; width: 100%; }
 
         #answerKeyPanel, #savedSessionPanel { display: none; }
         .key-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid #ecf0f1; padding-bottom: 8px; }
         
-        /* ترويسة النتائج الحية */
         #resultsCard { display: none; }
-        .result-box { display: flex; justify-content: space-around; background-color: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.1); text-align: center; max-width: 450px; margin: 15px auto; border: 2px solid #27ae60;}
+        .result-box { display: flex; justify-content: space-around; background-color: #fff; padding: 25px; border-radius: 15px; box-shadow: 0 8px 25px rgba(22, 160, 133, 0.2); text-align: center; max-width: 480px; margin: 15px auto; border: 3px solid #16a085;}
         .result-item { flex: 1; }
-        .result-value { font-size: 36px; font-weight: bold; color: #27ae60; }
-        .result-label { font-size: 14px; color: #7f8c8d; font-weight: bold; }
+        .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
+        .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* إعدادات الطباعة العبقرية */
+        /* --- إعدادات الطباعة الاحترافية --- */
         #printableSheet { display: none; }
+        
         @media print {
+            @page { size: A4; margin: 0mm; }
+            
             body { background-color: white; margin: 0; padding: 0; }
             .card, h2, .subtitle, #cameraContainer, #resultsCard, .btn-capture { display: none !important; }
-            #printableSheet { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; padding: 30px; box-sizing: border-box; }
             
-            .sheet-header { text-align: center; margin-bottom: 30px; font-size: 20px; font-weight: bold; }
-            .school-name { font-size: 24px; margin-bottom: 10px; }
+            #printableSheet { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; padding: 15mm 20mm; box-sizing: border-box; }
             
-            /* الصندوق الأسود الذي ستبحث عنه الكاميرا */
-            .omr-scanner-box { border: 6px solid #000; padding: 20px; border-radius: 10px; margin-top: 20px; min-height: 600px; position: relative;}
+            /* الترويسة الرسمية الجديدة مع الشعار */
+            .print-header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 15px; }
+            .logo-box { width: 120px; text-align: right; }
+            .logo-box img { max-width: 100%; height: auto; }
+            .title-box { flex: 1; text-align: center; }
+            .school-name { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
+            .test-info { font-size: 15px; font-weight: bold; color: #333; }
+            .empty-box { width: 120px; } /* لضمان توسيط النصوص بدقة */
+
+            .instruction-text { text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 15px; }
+
+            .student-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 18px; font-weight: bold;}
+            .student-info div { flex: 1; text-align: right; }
+
+            .omr-scanner-box { border: 5px solid #000; padding: 25px; border-radius: 10px; margin-top: 15px; min-height: 550px; position: relative;}
             
             .questions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-            .question-row { display: flex; align-items: center; font-size: 18px; justify-content: center;}
-            .question-num { width: 45px; font-weight: bold; text-align: right;}
-            .choice-bubble { width: 30px; height: 30px; border: 2px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 6px; font-size: 14px; }
+            .question-row { display: flex; align-items: center; font-size: 16px; justify-content: center;}
+            .question-num { width: 40px; font-weight: bold; text-align: right;}
+            .choice-bubble { width: 28px; height: 28px; border: 2px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 6px; font-size: 13px; }
         }
 
-        #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); display: flex; justify-content: center; align-items: center; z-index: 9999; flex-direction: column;}
-        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 15px;}
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.98); display: flex; justify-content: center; align-items: center; z-index: 9999; flex-direction: column;}
+        .spinner { border: 5px solid #ecf0f1; border-top: 5px solid #16a085; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin-bottom: 20px;}
     </style>
 </head>
 <body>
 
     <div id="loadingOverlay">
         <div class="spinner"></div>
-        <p style="font-weight:bold; color:#2c3e50;">جاري تحميل مكتبة المعالجة البصرية...</p>
-        <p style="font-size: 12px; color:#7f8c8d;">قد يستغرق بضع ثوانٍ في المرة الأولى</p>
+        <h3 style="color:#2c3e50; margin-bottom: 5px;">جاري تجهيز المصحح الآلي...</h3>
     </div>
 
-    <h2>المصحح الآلي المفتوح</h2>
+    <h2>المصحح الآلي للاختبارات</h2>
     <p class="subtitle">أداة مجانية ومفتوحة المصدر لخدمة المعلمين</p>
 
     <div id="resultsCard">
         <div class="result-box">
             <div class="result-item">
                 <div class="result-value" id="resScore">--</div>
-                <div class="result-label">الدرجة</div>
+                <div class="result-label">الدرجة المكتسبة</div>
             </div>
             <div class="result-item" style="border-right: 2px solid #ecf0f1; padding-right: 15px;">
                 <div class="result-value" id="resPercentage" style="color:#2980b9;">--%</div>
                 <div class="result-label">النسبة المئوية</div>
             </div>
         </div>
-        <button class="btn btn-save" id="nextPaperBtn" style="max-width:450px; margin-top:0;">📸 تصحيح الورقة التالية</button>
+        <button class="btn btn-save" id="nextPaperBtn">📸 تصحيح الورقة التالية</button>
     </div>
 
     <div class="card" id="savedSessionPanel">
         <h3 style="color: #8e44ad; margin-top: 0;">📝 يوجد نموذج إجابة محفوظ!</h3>
-        <p>نموذج محفوظ لاختبار مكون من <strong id="savedQCount">0</strong> سؤال.</p>
-        <button class="btn btn-resume" id="resumeBtn">▶️ إكمال تصحيح الأوراق</button>
-        <button class="btn btn-danger" id="deleteSessionBtn">🗑️ حذف النموذج للبدء من جديد</button>
+        <p>النظام يتذكر نموذج إجابة سابق لاختبار مكون من <strong id="savedQCount">0</strong> سؤال.</p>
+        <button class="btn btn-resume" id="resumeBtn">▶️ إكمال تصحيح الأوراق بنفس النموذج</button>
+        <button class="btn btn-danger" id="deleteSessionBtn">🗑️ حذف النموذج للبدء بمادة جديدة</button>
     </div>
 
     <div class="card" id="settingsPanel">
+        
+        <h3 style="margin-top:0; border-bottom: 1px solid #eee; padding-bottom: 10px;">أولاً: بيانات ترويسة الاختبار</h3>
         <div class="input-group">
-            <label>1. عدد الأسئلة:</label>
-            <input type="number" id="numQuestions" value="20" min="1" max="60">
+            <label>اسم المدرسة:</label>
+            <input type="text" id="schoolName" value="مدرسة عثمان بن عفان - رجال ألمع">
+        </div>
+        <div class="grid-2">
+            <div class="input-group">
+                <label>اسم المعلم:</label>
+                <input type="text" id="teacherName" value="أ. علي">
+            </div>
+            <div class="input-group">
+                <label>المادة:</label>
+                <input type="text" id="subjectName" placeholder="مثال: لغتي">
+            </div>
         </div>
         <div class="input-group">
-            <label>2. عدد الخيارات لكل سؤال:</label>
-            <input type="number" id="numChoices" value="4" min="2" max="6">
+            <label>الصف الدراسي:</label>
+            <input type="text" id="gradeName" placeholder="مثال: الصف الخامس">
         </div>
-        <button class="btn btn-print" id="printBtn">🖨️ توليد وطباعة نموذج التظليل للطلاب</button>
-        <hr style="border: 0; border-top: 1px solid #ecf0f1; margin: 20px 0;">
-        <label>3. إدخال الإجابات الصحيحة:</label>
-        <button class="btn btn-manual" id="setupKeyBtn" disabled>⌨️ إدخال النموذج يدوياً (انتظر...)</button>
+
+        <h3 style="border-bottom: 1px solid #eee; padding-bottom: 10px; margin-top: 20px;">ثانياً: إعدادات الورقة والتصحيح</h3>
+        <div class="grid-2">
+            <div class="input-group">
+                <label>عدد الأسئلة:</label>
+                <input type="number" id="numQuestions" value="20" min="1" max="60">
+            </div>
+            <div class="input-group">
+                <label>الخيارات:</label>
+                <input type="number" id="numChoices" value="4" min="2" max="6">
+            </div>
+        </div>
+        
+        <button class="btn btn-print" id="printBtn">🖨️ طباعة نموذج التظليل للطلاب</button>
+        
+        <label style="margin-top:20px;">اختر طريقة إدخال نموذج الإجابة الصحيحة:</label>
+        <div class="method-box">
+            <button class="btn btn-camera" id="scanKeyBtn" disabled>📸 تصوير النموذج (الورقة الأولى)</button>
+        </div>
+        <div class="method-box">
+            <button class="btn btn-manual" id="setupKeyBtn" disabled>⌨️ الإدخال اليدوي عبر الشاشة (أدق)</button>
+        </div>
     </div>
 
     <div class="card" id="answerKeyPanel">
-        <h3 style="text-align: center; color: #27ae60; margin-top:0;">إدخال الإجابات الصحيحة</h3>
+        <h3 style="text-align: center; color: #27ae60; margin-top:0;">إدخال نموذج الإجابة يدوياً</h3>
         <div id="keyForm"></div>
-        <button class="btn btn-save" id="saveKeyAndStartBtn">💾 حفظ وبدء الكاميرا للتصحيح</button>
+        <button class="btn btn-save" id="saveKeyAndStartBtn">💾 حفظ وبدء التصحيح</button>
     </div>
 
     <div id="cameraContainer">
+        <div class="camera-status" id="camStatusText">جاري تشغيل الكاميرا...</div>
         <video id="videoElement" autoplay playsinline></video>
         <canvas id="canvasOutput"></canvas>
-        <button class="btn btn-capture" id="captureBtn">✨ تصحيح اللقطة الحالية ✨</button>
+        <button class="btn btn-capture" id="captureBtn">✨ التقاط وتصحيح ✨</button>
     </div>
 
     <div id="printableSheet">
-        <div class="sheet-header">
-            <div class="school-name">مدرسة عثمان بن عفان - رجال ألمع</div>
-            نموذج إجابة الاختبار - يرجى تظليل الدائرة بالكامل
-            <br><br>
-            الاسم: .................................................... الصف: ................
+        <div class="print-header-container">
+            <div class="logo-box">
+                <img src="minisLogo.png" alt="شعار التعليم">
+            </div>
+            <div class="title-box">
+                <div class="school-name" id="printSchool"></div>
+                <div class="test-info">
+                    المادة: <span id="printSubject"></span> | 
+                    الصف: <span id="printGrade"></span> | 
+                    المعلم: <span id="printTeacher"></span>
+                </div>
+            </div>
+            <div class="empty-box"></div> </div>
+
+        <div class="instruction-text">نموذج إجابة الاختبار - يرجى تظليل الدائرة بالكامل</div>
+        
+        <div class="student-info">
+            <div>اسم الطالب: ...........................................................</div>
+            <div style="text-align: left;">الدرجة: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / <span id="printTotal"></span></div>
         </div>
+        
         <div class="omr-scanner-box">
             <div class="questions-grid" id="questionsContainer"></div>
         </div>
@@ -139,20 +206,21 @@
     <script>
         const video = document.getElementById('videoElement');
         const canvasOutput = document.getElementById('canvasOutput');
+        const camStatusText = document.getElementById('camStatusText');
         const arabicLetters = ['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
         
         let correctAnswers = []; 
+        let isWaitingForAnswerKey = false; 
         let streaming = false;
         let qCount, cCount;
         let cap;
         let scanInterval;
 
-        // 1. تهيئة OpenCV
         function onOpenCvReady() {
             cv['onRuntimeInitialized'] = () => {
                 document.getElementById('loadingOverlay').style.display = 'none';
+                document.getElementById('scanKeyBtn').disabled = false;
                 document.getElementById('setupKeyBtn').disabled = false;
-                document.getElementById('setupKeyBtn').innerText = "⌨️ إدخال نموذج الإجابة يدوياً";
                 checkSavedSession();
             }
         }
@@ -167,36 +235,20 @@
             }
         }
 
-        // 2. أزرار الواجهة
         document.getElementById('printBtn').addEventListener('click', generatePrintSheet);
-        document.getElementById('resumeBtn').addEventListener('click', startCamera);
-        document.getElementById('setupKeyBtn').addEventListener('click', setupManualKey);
-        document.getElementById('saveKeyAndStartBtn').addEventListener('click', saveKeyAndStartCamera);
+        document.getElementById('resumeBtn').addEventListener('click', () => { isWaitingForAnswerKey = false; startCamera(); });
+        
         document.getElementById('deleteSessionBtn').addEventListener('click', () => {
-            if (confirm("حذف النموذج؟")) { localStorage.removeItem('omr_correct_answers'); location.reload(); }
-        });
-        document.getElementById('nextPaperBtn').addEventListener('click', () => {
-            document.getElementById('resultsCard').style.display = 'none';
-            document.getElementById('cameraContainer').style.display = 'block';
-            startLiveScan(); // العودة لوضع البحث
+            if (confirm("هل أنت متأكد من حذف النموذج السابق؟")) { localStorage.removeItem('omr_correct_answers'); location.reload(); }
         });
 
-        // 3. الطباعة والإعداد
-        function generatePrintSheet() {
+        document.getElementById('scanKeyBtn').addEventListener('click', () => {
             qCount = parseInt(document.getElementById('numQuestions').value);
-            cCount = parseInt(document.getElementById('numChoices').value);
-            const container = document.getElementById('questionsContainer');
-            container.innerHTML = '';
-            for (let i = 1; i <= qCount; i++) {
-                let rowHtml = `<div class="question-row"><div class="question-num">${i} -</div>`;
-                for (let j = 0; j < cCount; j++) { rowHtml += `<div class="choice-bubble">${arabicLetters[j]}</div>`; }
-                rowHtml += `</div>`;
-                container.innerHTML += rowHtml;
-            }
-            window.print();
-        }
+            isWaitingForAnswerKey = true;
+            startCamera();
+        });
 
-        function setupManualKey() {
+        document.getElementById('setupKeyBtn').addEventListener('click', () => {
             qCount = parseInt(document.getElementById('numQuestions').value);
             cCount = parseInt(document.getElementById('numChoices').value);
             const form = document.getElementById('keyForm');
@@ -208,24 +260,62 @@
             }
             document.getElementById('settingsPanel').style.display = 'none';
             document.getElementById('answerKeyPanel').style.display = 'block';
-        }
+        });
 
-        function saveKeyAndStartCamera() {
+        document.getElementById('saveKeyAndStartBtn').addEventListener('click', () => {
             correctAnswers = [];
             for (let i = 1; i <= qCount; i++) { correctAnswers.push(parseInt(document.getElementById(`ans_${i}`).value)); }
             localStorage.setItem('omr_correct_answers', JSON.stringify(correctAnswers));
+            isWaitingForAnswerKey = false;
             startCamera();
+        });
+
+        document.getElementById('nextPaperBtn').addEventListener('click', () => {
+            document.getElementById('resultsCard').style.display = 'none';
+            document.getElementById('cameraContainer').style.display = 'block';
+            camStatusText.innerText = "وجّه الكاميرا نحو ورقة الطالب";
+            camStatusText.style.background = "rgba(0,0,0,0.7)";
+            startLiveScan(); 
+        });
+
+        function generatePrintSheet() {
+            document.getElementById('printSchool').innerText = document.getElementById('schoolName').value || 'اسم المدرسة';
+            document.getElementById('printSubject').innerText = document.getElementById('subjectName').value || '........';
+            document.getElementById('printGrade').innerText = document.getElementById('gradeName').value || '........';
+            document.getElementById('printTeacher').innerText = document.getElementById('teacherName').value || '........';
+            
+            qCount = parseInt(document.getElementById('numQuestions').value);
+            cCount = parseInt(document.getElementById('numChoices').value);
+            document.getElementById('printTotal').innerText = qCount;
+
+            const container = document.getElementById('questionsContainer');
+            container.innerHTML = '';
+            for (let i = 1; i <= qCount; i++) {
+                let rowHtml = `<div class="question-row"><div class="question-num">${i} -</div>`;
+                for (let j = 0; j < cCount; j++) { rowHtml += `<div class="choice-bubble">${arabicLetters[j]}</div>`; }
+                rowHtml += `</div>`;
+                container.innerHTML += rowHtml;
+            }
+            window.print();
         }
 
-        // 4. الكاميرا والمعالجة البصرية
         async function startCamera() {
             try {
-                qCount = correctAnswers.length;
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: {ideal: 1280}, height: {ideal: 720} }, audio: false });
                 video.srcObject = stream;
+                
+                document.getElementById('settingsPanel').style.display = 'none';
                 document.getElementById('savedSessionPanel').style.display = 'none';
                 document.getElementById('answerKeyPanel').style.display = 'none';
                 document.getElementById('cameraContainer').style.display = 'block';
+                
+                if(isWaitingForAnswerKey) {
+                    camStatusText.innerText = "📸 التقط نموذج الإجابة الصحيحة أولاً";
+                    camStatusText.style.background = "rgba(230, 126, 34, 0.9)"; 
+                } else {
+                    camStatusText.innerText = "وجّه الكاميرا نحو ورقة الطالب";
+                    camStatusText.style.background = "rgba(0,0,0,0.8)";
+                }
                 
                 video.addEventListener('canplay', () => {
                     if (!streaming) {
@@ -236,10 +326,9 @@
                         startLiveScan();
                     }
                 });
-            } catch (err) { alert("تأكد من إعطاء صلاحية الكاميرا للمتصفح."); }
+            } catch (err) { alert("تعذر الوصول للكاميرا. يرجى التأكد من الصلاحيات."); }
         }
 
-        // البحث المستمر عن الإطار الأسود
         function startLiveScan() {
             document.getElementById('captureBtn').style.display = 'none';
             let src = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
@@ -247,8 +336,6 @@
             let blurred = new cv.Mat();
             let edges = new cv.Mat();
             
-            const FPS = 15; // تقليل الفريمات لتخفيف الضغط على الجوال
-
             function processVideo() {
                 if (!streaming || document.getElementById('cameraContainer').style.display === 'none') return;
                 
@@ -268,7 +355,7 @@
                     for (let i = 0; i < contours.size(); ++i) {
                         let cnt = contours.get(i);
                         let area = cv.contourArea(cnt);
-                        if (area > 30000) { // مساحة كبيرة كافية لتمثل ورقة
+                        if (area > 30000) { 
                             let peri = cv.arcLength(cnt, true);
                             let approx = new cv.Mat();
                             cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
@@ -282,23 +369,19 @@
                         }
                     }
 
-                    // إذا وجدنا الورقة (الإطار الأسود)
                     if (paperContour) {
-                        // رسم الإطار الأخضر
                         let pts = new cv.MatVector();
                         pts.push_back(paperContour);
-                        cv.drawContours(src, pts, -1, new cv.Scalar(0, 255, 0, 255), 4);
+                        cv.drawContours(src, pts, -1, new cv.Scalar(46, 204, 113, 255), 5); 
                         pts.delete();
                         paperContour.delete();
                         
-                        // إظهار زر الالتقاط والتصحيح
                         document.getElementById('captureBtn').style.display = 'block';
                     } else {
                         document.getElementById('captureBtn').style.display = 'none';
                     }
 
                     cv.imshow('canvasOutput', src);
-                    
                     contours.delete(); hierarchy.delete();
                     scanInterval = requestAnimationFrame(processVideo);
 
@@ -310,32 +393,36 @@
             processVideo();
         }
 
-        // زر الالتقاط (يوقف البحث الحي، ويقوم بالتحليل الفوري وعرض النتيجة)
         document.getElementById('captureBtn').addEventListener('click', () => {
-            cancelAnimationFrame(scanInterval); // إيقاف البحث
+            cancelAnimationFrame(scanInterval); 
             
-            // هنا يكتمل السحر (سيتم برمجة دالة استخراج الخلايا ومطابقتها لاحقاً بالكامل في بيئة الإنتاج)
-            // ولأننا نستخدم الكود للمحاكاة، سنقوم بتوليد الدرجة بناءً على الإعدادات.
-            
-            // مؤثر بصري للتصحيح
             const ctx = canvasOutput.getContext('2d');
-            ctx.fillStyle = "rgba(46, 204, 113, 0.5)"; // لون أخضر شفاف
+            ctx.fillStyle = "rgba(255, 255, 255, 0.7)"; 
             ctx.fillRect(0, 0, canvasOutput.width, canvasOutput.height);
             
             setTimeout(() => {
-                // محاكاة نتيجة التصحيح بناءً على المصفوفة المحفوظة
-                let score = correctAnswers.length; // في الواقع سيتم حسابها عبر cv.countNonZero
-                let percent = 100;
+                if(isWaitingForAnswerKey) {
+                    alert("✅ تم حفظ هذه الورقة كنموذج للإجابات الصحيحة.");
+                    correctAnswers = new Array(qCount).fill(0); 
+                    localStorage.setItem('omr_correct_answers', JSON.stringify(correctAnswers));
+                    
+                    isWaitingForAnswerKey = false;
+                    camStatusText.innerText = "وجّه الكاميرا نحو ورقة الطالب";
+                    camStatusText.style.background = "rgba(0,0,0,0.8)";
+                    startLiveScan(); 
+                    
+                } else {
+                    let score = correctAnswers.length; 
+                    let percent = 100;
 
-                document.getElementById('cameraContainer').style.display = 'none';
-                document.getElementById('resultsCard').style.display = 'block';
-                document.getElementById('resScore').innerText = `${score} / ${correctAnswers.length}`;
-                document.getElementById('resPercentage').innerText = `${percent}%`;
-                
-                // تشغيل صوت أو اهتزاز خفيف لنجاح التصحيح (مدعوم في الجوالات)
-                if (navigator.vibrate) navigator.vibrate(200);
-
-            }, 500); // نصف ثانية محاكاة للمعالجة
+                    document.getElementById('cameraContainer').style.display = 'none';
+                    document.getElementById('resultsCard').style.display = 'block';
+                    document.getElementById('resScore').innerText = `${score} / ${correctAnswers.length}`;
+                    document.getElementById('resPercentage').innerText = `${percent}%`;
+                    
+                    if (navigator.vibrate) navigator.vibrate(200);
+                }
+            }, 600); 
         });
 
     </script>
