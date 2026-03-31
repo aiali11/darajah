@@ -33,10 +33,6 @@
         .btn-resume { background-color: #8e44ad; }
         .btn-capture { background-color: #f1c40f; color: #2c3e50; font-size: 18px; padding: 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(241, 196, 15, 0.4); margin-top: 15px; width: 100%; }
 
-        .method-box { border: 2px dashed #bdc3c7; padding: 15px; border-radius: 10px; margin-bottom: 15px; background-color: #fafbfc; }
-        .method-box h4 { margin: 0 0 10px 0; color: #2c3e50; }
-
-        /* شاشة الكاميرا والالتقاط داخل الموقع */
         #cameraContainer { display: none; text-align: center; max-width: 480px; margin: 0 auto; position: relative;}
         #videoElement { width: 100%; border-radius: 15px; border: 4px solid #2c3e50; box-shadow: 0 10px 20px rgba(0,0,0,0.2); background-color: #000; display: none; }
         #canvasOutput { width: 100%; border-radius: 15px; border: 4px solid #27ae60; box-shadow: 0 10px 20px rgba(0,0,0,0.2); display: none; }
@@ -88,7 +84,7 @@
 
     <div id="loadingOverlay">
         <div class="spinner"></div>
-        <div id="loadingText">جاري تجهيز المصحح الآلي...</div>
+        <div id="loadingText">جاري تجهيز محرك التصحيح الآلي...</div>
     </div>
 
     <h2>المصحح الآلي للاختبارات</h2>
@@ -160,10 +156,7 @@
         
         <label style="margin-top:20px;">اختر طريقة إدخال نموذج الإجابة الصحيحة:</label>
         <div class="method-box">
-            <button class="btn btn-camera" id="scanKeyBtn" disabled>📸 تصوير النموذج (الورقة الأولى)</button>
-        </div>
-        <div class="method-box">
-            <button class="btn btn-manual" id="setupKeyBtn" disabled>⌨️ الإدخال اليدوي عبر الشاشة (أدق)</button>
+            <button class="btn btn-manual" id="setupKeyBtn" disabled>⌨️ إدخال الإجابات يدوياً عبر الشاشة</button>
         </div>
     </div>
 
@@ -174,7 +167,7 @@
     </div>
 
     <div id="cameraContainer">
-        <div class="camera-instruction" id="cameraInstruction"></div>
+        <div class="camera-instruction" id="cameraInstruction">📝 وجه الكاميرا بحيث تظهر أسئلة الورقة كاملة، ثم اضغط التقاط</div>
         <video id="videoElement" autoplay playsinline muted></video>
         <canvas id="canvasOutput"></canvas>
         <button class="btn btn-capture" id="takePhotoBtn">📸 التقط الصورة وصحح</button>
@@ -222,14 +215,12 @@
     <script>
         const video = document.getElementById('videoElement');
         const canvasOutput = document.getElementById('canvasOutput');
-        const cameraInstruction = document.getElementById('cameraInstruction');
         const loadingOverlay = document.getElementById('loadingOverlay');
         const loadingText = document.getElementById('loadingText');
         const takePhotoBtn = document.getElementById('takePhotoBtn');
         
         const arabicLetters = ['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
         let correctAnswers = []; 
-        let isWaitingForAnswerKey = false; 
         let qCount, cCount;
 
         document.getElementById('addPrincipalCheck').addEventListener('change', function() {
@@ -239,7 +230,6 @@
         function onOpenCvReady() {
             cv['onRuntimeInitialized'] = () => {
                 loadingOverlay.style.display = 'none';
-                document.getElementById('scanKeyBtn').disabled = false;
                 document.getElementById('setupKeyBtn').disabled = false;
                 checkSavedSession();
             }
@@ -255,22 +245,14 @@
             }
         }
 
-        // --- الأزرار والتنقل ---
         document.getElementById('printBtn').addEventListener('click', generatePrintSheet);
         
         document.getElementById('resumeBtn').addEventListener('click', () => { 
-            isWaitingForAnswerKey = false; 
             startInAppCamera(); 
         });
         
         document.getElementById('deleteSessionBtn').addEventListener('click', () => {
-            if (confirm("هل أنت متأكد من حذف النموذج السابق؟")) { localStorage.removeItem('omr_correct_answers'); location.reload(); }
-        });
-
-        document.getElementById('scanKeyBtn').addEventListener('click', () => {
-            qCount = parseInt(document.getElementById('numQuestions').value);
-            isWaitingForAnswerKey = true;
-            startInAppCamera();
+            if (confirm("هل أنت متأكد من حذف النموذج؟")) { localStorage.removeItem('omr_correct_answers'); location.reload(); }
         });
 
         document.getElementById('setupKeyBtn').addEventListener('click', () => {
@@ -291,7 +273,6 @@
             correctAnswers = [];
             for (let i = 1; i <= qCount; i++) { correctAnswers.push(parseInt(document.getElementById(`ans_${i}`).value)); }
             localStorage.setItem('omr_correct_answers', JSON.stringify(correctAnswers));
-            isWaitingForAnswerKey = false;
             startInAppCamera();
         });
 
@@ -300,9 +281,6 @@
             startInAppCamera();
         });
 
-        // ---------------------------------------------------------
-        // تشغيل كاميرا الموقع (Viewfinder)
-        // ---------------------------------------------------------
         async function startInAppCamera() {
             document.getElementById('settingsPanel').style.display = 'none';
             document.getElementById('savedSessionPanel').style.display = 'none';
@@ -312,12 +290,6 @@
             canvasOutput.style.display = 'none'; 
             video.style.display = 'block';
             takePhotoBtn.style.display = 'block';
-            
-            if(isWaitingForAnswerKey) {
-                cameraInstruction.innerHTML = "📸 وجه الكاميرا نحو <b>نموذج الإجابة</b> ثم اضغط التقاط";
-            } else {
-                cameraInstruction.innerHTML = "📝 وجه الكاميرا نحو <b>ورقة الطالب</b> ثم اضغط التقاط";
-            }
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -330,116 +302,151 @@
             }
         }
 
-        // ---------------------------------------------------------
-        // عند الضغط على زر "التقاط وتصحيح"
-        // ---------------------------------------------------------
         takePhotoBtn.addEventListener('click', () => {
-            // 1. إيقاف الفيديو مؤقتاً ورسم اللقطة على الكانفاس (في الذاكرة)
             canvasOutput.width = video.videoWidth;
             canvasOutput.height = video.videoHeight;
             const ctx = canvasOutput.getContext('2d');
             ctx.drawImage(video, 0, 0, canvasOutput.width, canvasOutput.height);
 
-            // 2. إخفاء الفيديو وعرض اللقطة الثابتة
             video.style.display = 'none';
             takePhotoBtn.style.display = 'none';
             canvasOutput.style.display = 'block';
 
-            // 3. إظهار شاشة التحميل
-            loadingText.innerText = "جاري تحليل الصورة واستخراج الدرجة...";
+            loadingText.innerText = "جاري قراءة الدوائر واستخراج الدرجة...";
             loadingOverlay.style.display = 'flex';
 
-            // 4. تسليم اللقطة لمعالج الذكاء الاصطناعي
-            setTimeout(processCapturedCanvas, 100);
+            setTimeout(processRealOMR, 100);
         });
 
-        function processCapturedCanvas() {
+        // -------------------------------------------------------------
+        // العقل المدبر الحقيقي (خوارزمية تصحيح الدوائر - Real OMR Engine)
+        // -------------------------------------------------------------
+        function processRealOMR() {
             try {
-                // سحب الصورة من الكانفاس بدلاً من الفيديو المستمر
                 let src = cv.imread(canvasOutput);
                 let gray = new cv.Mat();
                 let blurred = new cv.Mat();
-                let edges = new cv.Mat();
+                let thresh = new cv.Mat();
                 
+                // 1. تحويل الصورة للأبيض والأسود وتنقيتها
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
                 cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-                cv.Canny(blurred, edges, 75, 200);
+                
+                // خوارزمية فصل الحبر الأسود (الدوائر المظللة والإطار) عن الخلفية البيضاء
+                cv.threshold(blurred, thresh, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
 
                 let contours = new cv.MatVector();
                 let hierarchy = new cv.Mat();
-                cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+                cv.findContours(thresh, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
                 let paperContour = null;
                 let maxArea = 0;
 
+                // 2. البحث عن الإطار الأسود الكبير الذي يحيط بالأسئلة
                 for (let i = 0; i < contours.size(); ++i) {
                     let cnt = contours.get(i);
                     let area = cv.contourArea(cnt);
                     if (area > (src.cols * src.rows * 0.1)) { 
-                        let peri = cv.arcLength(cnt, true);
-                        let approx = new cv.Mat();
-                        cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
-                        
-                        if (approx.rows === 4 && area > maxArea) {
+                        let rect = cv.boundingRect(cnt);
+                        if (area > maxArea) {
                             maxArea = area;
-                            if(paperContour) paperContour.delete();
-                            paperContour = approx.clone();
+                            paperContour = rect; // نأخذ المربع المحيط بالإطار
                         }
-                        approx.delete();
                     }
                 }
 
                 if (paperContour) {
-                    // رسم إطار أخضر حول الورقة المكتشفة للتأكيد البصري للمعلم
-                    let pts = new cv.MatVector();
-                    pts.push_back(paperContour);
-                    cv.drawContours(src, pts, -1, new cv.Scalar(46, 204, 113, 255), 10); 
-                    pts.delete();
-                    paperContour.delete();
-                }
-
-                // عرض النتيجة على الكانفاس
-                cv.imshow('canvasOutput', src);
-                
-                // تنظيف الذاكرة (مهم جداً لتجنب تعليق الجوال)
-                src.delete(); gray.delete(); blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete();
-                
-                loadingOverlay.style.display = 'none';
-
-                // إظهار بطاقة النتائج
-                setTimeout(() => {
-                    if(isWaitingForAnswerKey) {
-                        alert("✅ تم حفظ هذه اللقطة كنموذج للإجابات الصحيحة.");
-                        correctAnswers = new Array(qCount).fill(0); 
-                        localStorage.setItem('omr_correct_answers', JSON.stringify(correctAnswers));
+                    // 3. قص الصورة على حد الإطار الأسود بالضبط
+                    let roi = thresh.roi(paperContour);
+                    
+                    // رسم مربع أخضر للتأكيد البصري
+                    let pt1 = new cv.Point(paperContour.x, paperContour.y);
+                    let pt2 = new cv.Point(paperContour.x + paperContour.width, paperContour.y + paperContour.height);
+                    cv.rectangle(src, pt1, pt2, new cv.Scalar(46, 204, 113, 255), 4);
+                    
+                    // 4. تقسيم الإطار لعمودين (يمين ويسار)
+                    let colWidth = paperContour.width / 2;
+                    let numQ = correctAnswers.length;
+                    let rowsPerCol = Math.ceil(numQ / 2);
+                    let rowHeight = paperContour.height / rowsPerCol;
+                    let optionsCount = parseInt(document.getElementById('numChoices').value) || 4;
+                    
+                    let finalScore = 0;
+                    
+                    // 5. مسح كل سؤال وكل خيار لحساب نسبة السواد
+                    for (let q = 0; q < numQ; q++) {
+                        // تحديد موقع السؤال (يمين للأسئلة الأولى، يسار للبقية)
+                        let isRightColumn = q < rowsPerCol;
+                        let rowIdx = isRightColumn ? q : (q - rowsPerCol);
                         
-                        isWaitingForAnswerKey = false;
-                        startInAppCamera(); // استعداد لتصوير الطلاب
+                        // إحداثيات مستطيل السؤال
+                        let startX = isRightColumn ? colWidth : 0;
+                        let startY = rowIdx * rowHeight;
                         
-                    } else {
-                        let score = correctAnswers.length; 
-                        let percent = 100;
+                        let choiceWidth = colWidth / (optionsCount + 1); // +1 لمساحة رقم السؤال
+                        let selectedChoice = -1;
+                        let maxBlackPixels = 0;
 
+                        // مسح الخيارات (أ، ب، ج، د) من اليمين لليسار
+                        for (let c = 0; c < optionsCount; c++) {
+                            // حساب إحداثيات الدائرة
+                            let x = startX + (c * choiceWidth); // تبدأ من اليمين
+                            let y = startY;
+                            let rectChoice = new cv.Rect(Math.floor(x), Math.floor(y), Math.floor(choiceWidth), Math.floor(rowHeight));
+                            
+                            // التأكد من عدم تجاوز الحدود
+                            if (rectChoice.x + rectChoice.width <= roi.cols && rectChoice.y + rectChoice.height <= roi.rows) {
+                                let choiceRoi = roi.roi(rectChoice);
+                                let blackPixels = cv.countNonZero(choiceRoi); // حساب الحبر الأسود
+                                
+                                if (blackPixels > maxBlackPixels && blackPixels > (choiceWidth * rowHeight * 0.15)) { 
+                                    // يجب أن تكون الدائرة مظللة بنسبة معينة لتجنب الخدوش
+                                    maxBlackPixels = blackPixels;
+                                    selectedChoice = c;
+                                }
+                                choiceRoi.delete();
+                            }
+                        }
+
+                        // 6. مقارنة التظليل بنموذج الإجابة
+                        if (selectedChoice === correctAnswers[q]) {
+                            finalScore++;
+                        }
+                    }
+
+                    roi.delete();
+                    
+                    // 7. عرض النتيجة الحقيقية
+                    cv.imshow('canvasOutput', src);
+                    src.delete(); gray.delete(); blurred.delete(); thresh.delete(); contours.delete(); hierarchy.delete();
+                    
+                    loadingOverlay.style.display = 'none';
+
+                    setTimeout(() => {
+                        let percent = Math.round((finalScore / numQ) * 100);
                         document.getElementById('cameraContainer').style.display = 'none';
                         document.getElementById('resultsCard').style.display = 'block';
-                        document.getElementById('resScore').innerText = `${score} / ${correctAnswers.length}`;
+                        document.getElementById('resScore').innerText = `${finalScore} / ${numQ}`;
                         document.getElementById('resPercentage').innerText = `${percent}%`;
                         
+                        // لون النتيجة بناء على الدرجة
+                        document.getElementById('resPercentage').style.color = percent >= 50 ? "#27ae60" : "#e74c3c";
+                        
                         if (navigator.vibrate) navigator.vibrate(200);
-                    }
-                }, 800);
+                    }, 500);
+
+                } else {
+                    throw new Error("لم يتم العثور على الإطار الأسود");
+                }
 
             } catch (err) {
                 console.error(err);
-                alert("تعذر قراءة الورقة بوضوح. الرجاء التأكد من الإضاءة وإعادة الالتقاط.");
+                alert("تعذر قراءة الورقة بدقة. الرجاء التأكد من ظهور (الإطار الأسود) كاملاً في الشاشة وبإضاءة جيدة.");
                 loadingOverlay.style.display = 'none';
-                startInAppCamera(); // إعادة فتح الكاميرا للمحاولة مرة أخرى
+                startInAppCamera(); 
             }
         }
 
-        // ---------------------------------------------------------
-        // طباعة الورقة
-        // ---------------------------------------------------------
         function generatePrintSheet() {
             document.getElementById('printSchool').innerText = document.getElementById('schoolName').value || 'اسم المدرسة';
             document.getElementById('printSubject').innerText = document.getElementById('subjectName').value || '........';
