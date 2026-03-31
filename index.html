@@ -47,7 +47,7 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* إعدادات الطباعة */
+        /* --- إعدادات الطباعة (تم تطبيق التطابق الشبكي) --- */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
@@ -64,11 +64,14 @@
             .instruction-text { text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 15px; color: #333;}
             .student-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 18px; font-weight: bold;}
             .student-info div { flex: 1; text-align: right; }
-            .omr-scanner-box { border: 4px solid #000; padding: 25px; border-radius: 10px; margin-top: 15px; min-height: 520px; position: relative;}
-            .questions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-            .question-row { display: flex; align-items: center; font-size: 16px; justify-content: center;}
-            .question-num { width: 40px; font-weight: bold; text-align: right;}
-            .choice-bubble { width: 28px; height: 28px; border: 2px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 6px; font-size: 13px; }
+            
+            /* الهندسة الصارمة للشبكة لضمان قراءة الكاميرا بدقة 100% */
+            .omr-scanner-box { border: 4px solid #000; border-radius: 10px; margin-top: 15px; height: 550px; position: relative; box-sizing: border-box; padding: 0; background-color: #fff;}
+            .questions-grid { display: grid; grid-template-columns: 50% 50%; width: 100%; height: 100%; box-sizing: border-box;}
+            .question-row { display: grid; align-items: center; justify-items: center; direction: rtl; width: 100%; height: 100%; }
+            .question-num { font-weight: bold; font-size: 16px; }
+            .choice-bubble { width: 26px; height: 26px; border: 2px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; box-sizing: border-box;}
+            
             .print-footer { display: flex; justify-content: space-between; margin-top: 30px; font-size: 16px; font-weight: bold; }
             .sig-block { flex: 1; }
             .sig-left { text-align: left; }
@@ -346,7 +349,6 @@
             setTimeout(processRealOMR, 100);
         });
 
-        // --- محرك التصحيح القاطع والدقيق (Foolproof OMR Engine) ---
         function processRealOMR() {
             try {
                 let src = cv.imread(canvasOutput);
@@ -366,7 +368,6 @@
                 let paperContour = null;
                 let maxArea = 0;
 
-                // 1. العثور على الإطار الأسود الكبير
                 for (let i = 0; i < contours.size(); ++i) {
                     let cnt = contours.get(i);
                     let area = cv.contourArea(cnt);
@@ -387,7 +388,6 @@
                     throw new Error("لم يتم العثور على الإطار الأسود");
                 }
 
-                // 2. تعديل المنظور (Warp Perspective)
                 let pts = [];
                 for (let i = 0; i < 4; i++) { pts.push({ x: paperContour.data32S[i * 2], y: paperContour.data32S[i * 2 + 1] }); }
                 pts.sort((a, b) => a.y - b.y); 
@@ -411,11 +411,10 @@
                 let warped = new cv.Mat();
                 cv.warpPerspective(gray, warped, M, dsize);
 
-                // 3. فلتر الإضاءة الذكي (Adaptive Threshold) لتجاهل الظلال تماماً
+                // فلتر الإضاءة الذكي لعزل الظلال تماماً (Adaptive Thresholding)
                 let thresh = new cv.Mat();
                 cv.adaptiveThreshold(warped, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
 
-                // تجهيز صورة ملونة لرسم دليل الإثبات X-Ray
                 let proofImg = new cv.Mat();
                 cv.cvtColor(warped, proofImg, cv.COLOR_GRAY2RGBA);
 
@@ -423,44 +422,39 @@
                 cCount = cCount || parseInt(document.getElementById('numChoices').value);
                 
                 let rowsPerCol = Math.ceil(qCount / 2);
-                
-                // هوامش أمان دقيقة لاستبعاد الخط الأسود نفسه من الحسبة
-                let marginX = maxWidth * 0.06; 
-                let marginY = maxHeight * 0.05;
-                let workWidth = maxWidth - (2 * marginX);
-                let workHeight = maxHeight - (2 * marginY);
-                let colWidth = workWidth / 2;
-                let rowHeight = workHeight / rowsPerCol;
+                let colW = maxWidth / 2;
+                let rowH = maxHeight / rowsPerCol;
 
                 let finalScore = 0;
                 let detectedAnswers = [];
 
-                // 4. المسح الدقيق للدوائر
+                // المعادلة الرياضية للتطابق الشبكي
                 for (let q = 0; q < qCount; q++) {
-                    let isRightColumn = q < rowsPerCol;
-                    let rowIdx = isRightColumn ? q : (q - rowsPerCol);
+                    // تصحيح انحراف الشبكة (q=0 يمين، q=1 يسار)
+                    let isRightCol = (q % 2 === 0);
+                    let rowIdx = Math.floor(q / 2);
                     
-                    let startX = marginX + (isRightColumn ? colWidth : 0);
-                    let startY = marginY + (rowIdx * rowHeight);
+                    let colRightEdge = isRightCol ? maxWidth : colW;
+                    let rowCenterY = (rowIdx * rowH) + (rowH / 2);
 
-                    let segmentWidth = colWidth / (cCount + 1); // مساحة مخصصة للرقم
                     let maxBlackPixels = 0;
                     let selectedChoice = -1;
 
-                    // مسح الخيارات (أ، ب، ج، د) 
                     for (let c = 0; c < cCount; c++) {
-                        // حساب إحداثيات الدائرة بالضبط من اليمين لليسار
-                        let x = (startX + colWidth) - ((c + 1.8) * segmentWidth); 
-                        let y = startY + (rowHeight * 0.15); 
-                        let w = segmentWidth * 0.8; 
-                        let h = rowHeight * 0.7; 
+                        // حساب دقيق لمركز الدائرة استناداً إلى CSS Grid
+                        let percentFromRight = 0.20 + ((c + 0.5) * (0.80 / cCount));
+                        let centerX = colRightEdge - (colW * percentFromRight);
+
+                        let roiSize = Math.min(colW * 0.12, rowH * 0.8);
                         
-                        if(x < 0) x = 0;
-                        let rectChoice = new cv.Rect(Math.floor(x), Math.floor(y), Math.floor(w), Math.floor(h));
+                        let x = centerX - (roiSize / 2);
+                        let y = rowCenterY - (roiSize / 2);
+
+                        let rectChoice = new cv.Rect(Math.floor(x), Math.floor(y), Math.floor(roiSize), Math.floor(roiSize));
 
                         if (rectChoice.x >= 0 && rectChoice.y >= 0 && rectChoice.x + rectChoice.width <= thresh.cols && rectChoice.y + rectChoice.height <= thresh.rows) {
                             let choiceRoi = thresh.roi(rectChoice);
-                            let blackPixels = cv.countNonZero(choiceRoi); // حساب كمية الحبر
+                            let blackPixels = cv.countNonZero(choiceRoi); 
 
                             if (blackPixels > maxBlackPixels) {
                                 maxBlackPixels = blackPixels;
@@ -468,31 +462,33 @@
                             }
                             choiceRoi.delete();
                             
-                            // رسم مربع أحمر خفيف لكل دائرة كدليل بصري
-                            cv.rectangle(proofImg, new cv.Point(rectChoice.x, rectChoice.y), new cv.Point(rectChoice.x + rectChoice.width, rectChoice.y + rectChoice.height), new cv.Scalar(255, 0, 0, 100), 1);
+                            // رسم مربع المراقبة (أحمر)
+                            cv.rectangle(proofImg, new cv.Point(rectChoice.x, rectChoice.y), new cv.Point(rectChoice.x + rectChoice.width, rectChoice.y + rectChoice.height), new cv.Scalar(255, 0, 0, 150), 2);
                         }
                     }
 
-                    // رادار الفراغات: إذا كان الحبر أقل من 20%، فهذا يعني أن الطالب لم يظلل (نعطيه صفر)
-                    let bubbleArea = (segmentWidth * 0.8) * (rowHeight * 0.7);
+                    // تصفير السؤال إذا كانت الدائرة غير مظللة (أقل من 20% حبر)
+                    let bubbleArea = roiSize * roiSize;
                     if (maxBlackPixels < (bubbleArea * 0.20)) {
-                        selectedChoice = -1; // سؤال متروك
+                        selectedChoice = -1; 
                     }
 
                     detectedAnswers.push(selectedChoice);
 
-                    // رسم مربع أخضر صلب فوق الدائرة التي اختارها الطالب أو النظام
+                    // رسم مربع الاختيار (أخضر)
                     if (selectedChoice !== -1) {
-                        let finalX = (startX + colWidth) - ((selectedChoice + 1.8) * segmentWidth);
-                        let finalY = startY + (rowHeight * 0.15);
-                        cv.rectangle(proofImg, new cv.Point(finalX, finalY), new cv.Point(finalX + (segmentWidth * 0.8), finalY + (rowHeight * 0.7)), new cv.Scalar(0, 255, 0, 255), 3);
+                        let finalPercent = 0.20 + ((selectedChoice + 0.5) * (0.80 / cCount));
+                        let finalCenterX = colRightEdge - (colW * finalPercent);
+                        let roiSize = Math.min(colW * 0.12, rowH * 0.8);
+                        let finalX = finalCenterX - (roiSize / 2);
+                        let finalY = rowCenterY - (roiSize / 2);
+                        
+                        cv.rectangle(proofImg, new cv.Point(Math.floor(finalX), Math.floor(finalY)), new cv.Point(Math.floor(finalX + roiSize), Math.floor(finalY + roiSize)), new cv.Scalar(0, 255, 0, 255), 4);
                     }
                 }
 
-                // عرض دليل المطابقة في شاشة النتائج
                 cv.imshow('proofCanvas', proofImg);
                 
-                // تنظيف الذاكرة
                 src.delete(); gray.delete(); blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete();
                 paperContour.delete(); srcTri.delete(); dstTri.delete(); M.delete(); warped.delete(); thresh.delete(); proofImg.delete();
                 
@@ -500,7 +496,6 @@
 
                 setTimeout(() => {
                     if(isWaitingForAnswerKey) {
-                        // وضع "تصوير النموذج"
                         correctAnswers = detectedAnswers; 
                         localStorage.setItem('omr_correct_answers', JSON.stringify(correctAnswers));
                         alert("✅ تم قراءة النموذج وحفظه بنجاح! راجع صورة الإثبات للتأكد. يمكنك الآن بدء تصحيح أوراق الطلاب.");
@@ -512,7 +507,6 @@
                         isWaitingForAnswerKey = false;
                         
                     } else {
-                        // وضع "تصحيح ورقة الطالب"
                         for(let q=0; q < qCount; q++){
                             if (detectedAnswers[q] !== -1 && detectedAnswers[q] === correctAnswers[q]) {
                                 finalScore++;
@@ -535,13 +529,14 @@
                 alert("⚠️ تعذر التصحيح! تأكد من إظهار (الإطار الأسود) كاملاً ومستقيماً تحت إضاءة جيدة.");
                 loadingOverlay.style.display = 'none';
                 
-                // إعادة الأزرار في حال الفشل
+                // حماية: إعادة إظهار الأزرار في حال فشل القراءة
                 document.getElementById('videoElement').style.display = 'block';
                 document.getElementById('takePhotoBtn').style.display = 'block';
                 document.getElementById('canvasOutput').style.display = 'none';
             }
         }
 
+        // هندسة التوزيع الشبكي (CSS Grid) مطابقة بنسبة 100% لمحرك التحليل
         function generatePrintSheet() {
             document.getElementById('printSchool').innerText = document.getElementById('schoolName').value || 'اسم المدرسة';
             document.getElementById('printSubject').innerText = document.getElementById('subjectName').value || '........';
@@ -562,7 +557,9 @@
             const container = document.getElementById('questionsContainer');
             container.innerHTML = '';
             for (let i = 1; i <= qCount; i++) {
-                let rowHtml = `<div class="question-row"><div class="question-num">${i} -</div>`;
+                // التقسيم الدقيق: 20% للرقم، والمتبقي مقسم على الخيارات بالتساوي
+                let rowHtml = `<div class="question-row" style="grid-template-columns: 20% repeat(${cCount}, ${80/cCount}%);">
+                               <div class="question-num">${i} -</div>`;
                 for (let j = 0; j < cCount; j++) { rowHtml += `<div class="choice-bubble">${arabicLetters[j]}</div>`; }
                 rowHtml += `</div>`;
                 container.innerHTML += rowHtml;
