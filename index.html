@@ -54,7 +54,6 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* --- إعدادات الطباعة --- */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
@@ -403,7 +402,7 @@
             setTimeout(processRealOMR, 100);
         });
 
-        // --- محرك التصحيح القاطع والدقيق (Foolproof OMR Engine) ---
+        // --- محرك التصحيح المحدث (تعديل الحساسية لقلم الحبر النحيف) ---
         function processRealOMR() {
             try {
                 let src = cv.imread(canvasOutput);
@@ -460,12 +459,13 @@
                 let warped = new cv.Mat();
                 cv.warpPerspective(gray, warped, M_warp, dsize);
 
-                // تجهيز دليل المطابقة البصرية
+                // دليل المطابقة البصرية
                 let proofImg = new cv.Mat();
                 cv.cvtColor(warped, proofImg, cv.COLOR_GRAY2RGBA);
 
-                // تحويل الورقة المصححة للثنائي بدقة لقراءة التظليل
+                // تحويل الورقة لثنائية لقراءة التظليل
                 let thresh = new cv.Mat();
+                // تم تقليل عتبة الـ C إلى 10 لزيادة الحساسية لشحنات القلم النحيفة
                 cv.adaptiveThreshold(warped, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 41, 10);
 
                 qCount = qCount || correctAnswers.length; 
@@ -478,9 +478,9 @@
                 let finalScore = 0;
                 let detectedAnswers = [];
 
-                // 🚨 عتبة التظليل الصارمة لمنع ظلم الطلاب 🚨
-                // الدائرة يجب أن تكون مظللة بنسبة 45% على الأقل لتعتبر إجابة
-                const STRICT_FILL_THRESHOLD = 0.45; 
+                // 🚨 تعديل الحساسية: عتبة التظليل الجديدة 🚨
+                // تم تقليل النسبة إلى 15% فقط لتعتبر إجابة (مناسب لقلم الحبر النحيف والشخطات الوسطية)
+                const STICK_FILL_THRESHOLD = 0.15; 
 
                 for (let q = 0; q < qCount; q++) {
                     let isRightCol = (q % 2 === 0);
@@ -510,24 +510,19 @@
                             let rectChoice = new cv.Rect(x, y, w_roi, h_roi);
                             let choiceRoi = thresh.roi(rectChoice);
                             
-                            // 1. حساب كمية الحبر الأسود (NonZero) داخل الدائرة
+                            // حساب مساحة السواد داخل الدائرة
                             let blackPixels = cv.countNonZero(choiceRoi); 
                             let totalPixels = w_roi * h_roi;
-                            
-                            // 2. حساب النسبة المئوية للتظليل
                             let fillPercentage = blackPixels / totalPixels;
 
-                            // 3. التحقق الصارم: هل تجاوزت العتبة؟
-                            if (fillPercentage >= STRICT_FILL_THRESHOLD) {
+                            // رسم مربع المراقبة الأحمر الافتراضي
+                            cv.rectangle(proofImg, new cv.Point(x, y), new cv.Point(x + w_roi, y + h_roi), new cv.Scalar(255, 0, 0, 100), 1);
+
+                            // إذا تجاوز تظليل القلم العتبة الجديدة (المنخفضة)، نعتبرها إجابة
+                            if (fillPercentage >= STICK_FILL_THRESHOLD) {
                                 selectedChoicesIndices.push(c);
-                                // رسم مربع أخضر (تظليل مقبول)
-                                cv.rectangle(proofImg, new cv.Point(x, y), new cv.Point(x + w_roi, y + h_roi), new cv.Scalar(0, 255, 0, 255), 3);
-                            } else if (fillPercentage > 0.05) {
-                                // رسم مربع أزرق (غبار أو تظليل ضعيف جداً - سيتم تجاهله)
-                                cv.rectangle(proofImg, new cv.Point(x, y), new cv.Point(x + w_roi, y + h_roi), new cv.Scalar(255, 255, 0, 255), 1);
-                            } else {
-                                // رسم مربع أحمر خفيف (فارغ تماماً)
-                                cv.rectangle(proofImg, new cv.Point(x, y), new cv.Point(x + w_roi, y + h_roi), new cv.Scalar(255, 0, 0, 100), 1);
+                                // رسم إطار أخضر سميك للتأكيد البصري على قبول التظليل
+                                cv.rectangle(proofImg, new cv.Point(x, y), new cv.Point(x + w_roi, y + h_roi), new cv.Scalar(0, 255, 0, 255), 4);
                             }
                             
                             choiceRoi.delete();
@@ -536,14 +531,11 @@
 
                     // تحديد الإجابة النهائية للسؤال
                     if (selectedChoicesIndices.length === 1) {
-                        // مظلل دائرة واحدة فقط -> إجابة صالحة
                         detectedAnswers.push(selectedChoicesIndices[0]);
                     } else if (selectedChoicesIndices.length > 1) {
-                        // مظلل أكثر من دائرة -> إجابة ملغاة (صفر)
-                        detectedAnswers.push(-2); // كود يرمز لتعدد التظليل
+                        detectedAnswers.push(-2); // تعدد التظليل (صفر)
                     } else {
-                        // لم يظلل أي دائرة فوق العتبة -> فارغ (صفر)
-                        detectedAnswers.push(-1); 
+                        detectedAnswers.push(-1); // فارغ (صفر)
                     }
                 }
 
@@ -569,7 +561,6 @@
                         
                     } else {
                         for(let q=0; q < qCount; q++){
-                            // السؤال يُحسب صح فقط إذا اختار الطالب خياراً واحداً وكان مطابقاً للنموذج
                             if (detectedAnswers[q] >= 0 && detectedAnswers[q] === correctAnswers[q]) {
                                 finalScore++;
                             }
