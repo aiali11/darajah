@@ -42,15 +42,6 @@
         .btn-flash { background: #f1c40f; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 10px rgba(241,196,15,0.5); }
         .btn-flash.active { background: #fff; color: #f1c40f; }
 
-        /* شاشة التوجيه للكاميرا (نقاط الارتكاز الأربعة) */
-        .camera-guide-anchors { position: absolute; top: 10%; left: 10%; width: 80%; height: 80%; pointer-events: none; z-index: 5; display: none;}
-        .g-anchor { position: absolute; width: 40px; height: 40px; border: 3px solid rgba(46, 204, 113, 0.8); background: rgba(46, 204, 113, 0.2); border-radius: 5px;}
-        .g-tr { top: -20px; right: -20px; }
-        .g-tl { top: -20px; left: -20px; }
-        .g-br { bottom: -20px; right: -20px; }
-        .g-bl { bottom: -20px; left: -20px; }
-        .guide-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.9); font-weight: bold; font-size: 15px; text-align: center; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 10px; width: 90%;}
-
         #answerKeyPanel, #savedSessionPanel { display: none; }
         .key-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid #ecf0f1; padding-bottom: 8px; }
         
@@ -60,7 +51,7 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* --- إعدادات الطباعة العالمية (بنظام نقاط الارتكاز 4 Corners) --- */
+        /* --- إعدادات الطباعة الرياضية المتطابقة --- */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
@@ -78,27 +69,23 @@
             .student-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 18px; font-weight: bold;}
             .student-info div { flex: 1; text-align: right; }
             
-            /* التصميم الجديد لصندوق الأسئلة (بدون إطار، فقط 4 مربعات بالزوايا) */
-            .omr-scanner-box { position: relative; width: 100%; height: 580px; box-sizing: border-box; background: #fff; margin-top: 15px;}
-            
-            /* نقاط الارتكاز السوداء الأربعة (السر العظيم) */
-            .anchor-marker { position: absolute; width: 25px; height: 25px; background: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; border-radius: 4px;}
+            .omr-scanner-box { border: none; margin-top: 15px; height: 550px; position: relative; box-sizing: border-box; padding: 0; background-color: #fff;}
+            .anchor-marker { position: absolute; width: 25px; height: 25px; background: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; border-radius: 3px;}
             .m-tr { top: 0; right: 0; }
             .m-tl { top: 0; left: 0; }
             .m-br { bottom: 0; right: 0; }
             .m-bl { bottom: 0; left: 0; }
             
-            /* حاوية الأسئلة والمفاتيح بمسافة آمنة من المربعات */
             .grid-wrapper { position: absolute; top: 7%; bottom: 4%; left: 4%; right: 4%; display: flex; flex-direction: column; }
             
-            .keys-header-container { display: grid; grid-template-columns: 50% 50%; width: 100%; height: 5%; font-weight: bold; font-size: 16px; margin-bottom: 5px;}
+            /* تم تحويل المسافات إلى نسب مئوية دقيقة لتتطابق مع الكاميرا */
+            .keys-header-container { display: grid; grid-template-columns: 50% 50%; width: 100%; height: 5%; font-weight: bold; font-size: 16px; margin-bottom: 1%;}
             .key-col { display: grid; align-items: center; justify-items: center; direction: rtl; width: 100%; }
             .key-letter { display: flex; align-items: center; justify-content: center; }
             
-            .questions-grid { display: grid; grid-template-columns: 50% 50%; width: 100%; height: 95%; box-sizing: border-box;}
+            .questions-grid { display: grid; grid-template-columns: 50% 50%; width: 100%; height: 94%; box-sizing: border-box;}
             .question-row { display: grid; align-items: center; justify-items: center; direction: rtl; width: 100%; height: 100%; }
             .question-num { font-weight: bold; font-size: 16px; }
-            /* الدوائر فارغة تماماً */
             .choice-bubble { width: 26px; height: 26px; border: 2px solid #000; border-radius: 50%; background-color: white; display: flex; align-items: center; justify-content: center; box-sizing: border-box;}
             
             .print-footer { display: flex; justify-content: space-between; margin-top: 25px; font-size: 16px; font-weight: bold; }
@@ -208,19 +195,12 @@
 
     <div id="cameraContainer">
         <div class="camera-header">
-            <div class="camera-instruction" id="cameraInstruction">📝 طابق المربعات السوداء الـ 4 مع الزوايا</div>
+            <div class="camera-instruction" id="cameraInstruction">📝 وجه الكاميرا لتشمل المربعات الأربعة السوداء</div>
             <button class="btn-flash" id="flashBtn" title="تشغيل الكشاف">💡</button>
         </div>
         
         <div style="position: relative; width: 100%;">
             <video id="videoElement" autoplay playsinline muted></video>
-            <div class="camera-guide-anchors" id="cameraGuide">
-                <div class="g-anchor g-tr"></div>
-                <div class="g-anchor g-tl"></div>
-                <div class="g-anchor g-br"></div>
-                <div class="g-anchor g-bl"></div>
-                <div class="guide-text">أدخل المربعات السوداء المطبوعة<br>داخل هذه الزوايا الخضراء</div>
-            </div>
         </div>
         
         <canvas id="canvasOutput"></canvas>
@@ -282,7 +262,6 @@
         const loadingText = document.getElementById('loadingText');
         const takePhotoBtn = document.getElementById('takePhotoBtn');
         const cameraInstruction = document.getElementById('cameraInstruction');
-        const cameraGuide = document.getElementById('cameraGuide');
         const flashBtn = document.getElementById('flashBtn');
         
         const arabicLetters = ['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
@@ -385,7 +364,6 @@
             
             canvasOutput.style.display = 'none'; 
             video.style.display = 'block';
-            cameraGuide.style.display = 'block'; 
             takePhotoBtn.style.display = 'block';
             isFlashOn = false;
             flashBtn.classList.remove('active');
@@ -393,7 +371,7 @@
             if(isWaitingForAnswerKey) {
                 cameraInstruction.innerHTML = "📸 صور <b>نموذج الإجابة</b>";
             } else {
-                cameraInstruction.innerHTML = "📝 طابق المربعات السوداء الأربعة مع الزوايا";
+                cameraInstruction.innerHTML = "📝 وجه الكاميرا لتشمل المربعات الأربعة السوداء";
             }
 
             try {
@@ -425,7 +403,6 @@
             ctx.drawImage(video, 0, 0, canvasOutput.width, canvasOutput.height);
 
             video.style.display = 'none';
-            cameraGuide.style.display = 'none';
             takePhotoBtn.style.display = 'none';
             canvasOutput.style.display = 'block';
 
@@ -441,78 +418,86 @@
             setTimeout(processRealOMR, 100);
         });
 
-        // --- محرك التصحيح العالمي (نظام الارتكاز الرباعي - ZipGrade Style) ---
+        // --- محرك التتبع الذكي (Smart Global Tracking) ---
         function processRealOMR() {
             try {
                 let src = cv.imread(canvasOutput);
                 let gray = new cv.Mat();
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
+                // 1. فلتر البحث عن المربعات السوداء (تجاهل كل شيء آخر)
                 let threshBox = new cv.Mat();
-                cv.adaptiveThreshold(gray, threshBox, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
+                cv.GaussianBlur(gray, threshBox, new cv.Size(5, 5), 0);
+                cv.adaptiveThreshold(threshBox, threshBox, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
 
-                let w = src.cols; let h = src.rows;
-                
-                // تقسيم الشاشة لـ 4 أرباع (ROIs) للبحث عن المربعات السوداء
-                let roiTL = new cv.Rect(0, 0, Math.floor(w/2), Math.floor(h/2));
-                let roiTR = new cv.Rect(Math.floor(w/2), 0, Math.floor(w/2), Math.floor(h/2));
-                let roiBL = new cv.Rect(0, Math.floor(h/2), Math.floor(w/2), Math.floor(h/2));
-                let roiBR = new cv.Rect(Math.floor(w/2), Math.floor(h/2), Math.floor(w/2), Math.floor(h/2));
+                let M_dilate = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+                cv.dilate(threshBox, threshBox, M_dilate);
 
-                // دالة صيد المربع الأسود في كل زاوية
-                function getMarkerPoint(roiRect, cornerType) {
-                    let roi = threshBox.roi(roiRect);
-                    let contours = new cv.MatVector();
-                    let hierarchy = new cv.Mat();
-                    cv.findContours(roi, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+                let contours = new cv.MatVector();
+                let hierarchy = new cv.Mat();
+                cv.findContours(threshBox, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
-                    let maxArea = 0; let bestRect = null;
-                    for (let i = 0; i < contours.size(); ++i) {
-                        let cnt = contours.get(i);
-                        let area = cv.contourArea(cnt);
-                        // المربع لازم يكون حجمه منطقي ومو غبار
-                        if (area > 100 && area < (roiRect.width * roiRect.height * 0.2)) {
-                            if (area > maxArea) {
-                                maxArea = area;
-                                bestRect = cv.boundingRect(cnt);
-                            }
+                let squareContours = [];
+                for (let i = 0; i < contours.size(); ++i) {
+                    let cnt = contours.get(i);
+                    let area = cv.contourArea(cnt);
+                    // البحث عن مربعات صغيرة في الشاشة (أكبر من الغبار، أصغر من الورقة)
+                    if (area > 80 && area < 15000) {
+                        let rect = cv.boundingRect(cnt);
+                        let aspectRatio = rect.width / rect.height;
+                        let extent = area / (rect.width * rect.height);
+                        
+                        // يجب أن يكون الشكل مربعاً صلباً تقريباً
+                        if (aspectRatio >= 0.6 && aspectRatio <= 1.4 && extent > 0.4) {
+                            let M = cv.moments(cnt);
+                            let cx = M.m10 / M.m00;
+                            let cy = M.m01 / M.m00;
+                            squareContours.push({ cx: cx, cy: cy, cnt: cnt.clone() });
                         }
                     }
-                    roi.delete(); contours.delete(); hierarchy.delete();
-
-                    if (!bestRect) return null;
-
-                    let absX = bestRect.x + roiRect.x;
-                    let absY = bestRect.y + roiRect.y;
-
-                    // نأخذ الزاوية القصوى من كل مربع ارتكاز عشان يحدد حدود الورقة 100%
-                    if (cornerType === 'TL') return { x: absX, y: absY };
-                    if (cornerType === 'TR') return { x: absX + bestRect.width, y: absY };
-                    if (cornerType === 'BL') return { x: absX, y: absY + bestRect.height };
-                    if (cornerType === 'BR') return { x: absX + bestRect.width, y: absY + bestRect.height };
                 }
 
-                let pTL = getMarkerPoint(roiTL, 'TL');
-                let pTR = getMarkerPoint(roiTR, 'TR');
-                let pBL = getMarkerPoint(roiBL, 'BL');
-                let pBR = getMarkerPoint(roiBR, 'BR');
-
-                if (!pTL || !pTR || !pBL || !pBR) {
-                    throw new Error("لم يتم العثور على مربعات الارتكاز الأربعة في الزوايا");
+                if (squareContours.length < 4) {
+                    throw new Error("لم يتم العثور على المربعات الأربعة");
                 }
 
-                let maxWidth = Math.max(Math.hypot(pBR.x - pBL.x, pBR.y - pBL.y), Math.hypot(pTR.x - pTL.x, pTR.y - pTL.y));
-                let maxHeight = Math.max(Math.hypot(pTR.x - pBR.x, pTR.y - pBR.y), Math.hypot(pTL.x - pBL.x, pTL.y - pBL.y));
+                // 2. تصنيف وتحديد الزوايا الأربع للورقة من بين كل المربعات اللي لقاها
+                let tl = squareContours.reduce((min, p) => (p.cx + p.cy < min.cx + min.cy ? p : min), squareContours[0]);
+                let br = squareContours.reduce((max, p) => (p.cx + p.cy > max.cx + max.cy ? p : max), squareContours[0]);
+                let tr = squareContours.reduce((max, p) => (p.cx - p.cy > max.cx - max.y ? p : max), squareContours[0]);
+                let bl = squareContours.reduce((min, p) => (p.cx - p.cy < min.cx - min.cy ? p : min), squareContours[0]);
 
+                // استخراج الإحداثيات الخارجية الدقيقة جداً للمربعات لضبط المنظور
+                function getOuterPoint(sq, type) {
+                    let pts = [];
+                    for (let i = 0; i < sq.cnt.rows; i++) {
+                        pts.push({ x: sq.cnt.data32S[i * 2], y: sq.cnt.data32S[i * 2 + 1] });
+                    }
+                    if (type === 'TL') return pts.reduce((min, p) => (p.x + p.y < min.x + min.y ? p : min), pts[0]);
+                    if (type === 'TR') return pts.reduce((max, p) => (p.x - p.y > max.x - max.y ? p : max), pts[0]);
+                    if (type === 'BR') return pts.reduce((max, p) => (p.x + p.y > max.x + max.y ? p : max), pts[0]);
+                    if (type === 'BL') return pts.reduce((min, p) => (p.x - p.y < min.x - min.y ? p : min), pts[0]);
+                }
+
+                let ptTL = getOuterPoint(tl, 'TL');
+                let ptTR = getOuterPoint(tr, 'TR');
+                let ptBR = getOuterPoint(br, 'BR');
+                let ptBL = getOuterPoint(bl, 'BL');
+
+                squareContours.forEach(sq => sq.cnt.delete());
+
+                // 3. تسطيح الورقة وفردها بنسبة رياضية صارمة 100%
+                let maxWidth = 800; // عرض ثابت وموحد لكل الجوالات
+                let maxHeight = 1100; // طول ثابت
                 let dsize = new cv.Size(maxWidth, maxHeight);
-                let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [pTL.x, pTL.y, pTR.x, pTR.y, pBR.x, pBR.y, pBL.x, pBL.y]);
+                let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [ptTL.x, ptTL.y, ptTR.x, ptTR.y, ptBR.x, ptBR.y, ptBL.x, ptBL.y]);
                 let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth, 0, maxWidth, maxHeight, 0, maxHeight]);
                 let M = cv.getPerspectiveTransform(srcTri, dstTri);
                 
                 let warped = new cv.Mat();
-                cv.warpPerspective(gray, warped, M, dsize); // هنا الورقة انفرطت وصارت مستقيمة 100%
+                cv.warpPerspective(gray, warped, M, dsize);
 
-                // فلتر قراءة الدوائر
+                // 4. قراءة الدوائر بدون تدخل أي تشويش خارجي
                 let thresh = new cv.Mat();
                 cv.adaptiveThreshold(warped, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 41, 10);
 
@@ -522,14 +507,14 @@
                 qCount = qCount || correctAnswers.length || 20; 
                 cCount = cCount || parseInt(document.getElementById('numChoices').value) || 4;
                 
-                // حسابات التوزيع الشبكي المتوافقة مع الـ CSS المطبوع
+                // هذه هي الترجمة الحرفية لمعادلة الـ CSS اللي في شاشة الطباعة
                 let gridX = maxWidth * 0.04;
                 let gridY = maxHeight * 0.07;
                 let gridW = maxWidth * 0.92;
                 let gridH = maxHeight * 0.89;
 
-                let qGridY = gridY + (gridH * 0.05); // تجاوز الترويسة العلوية
-                let qGridH = gridH * 0.95;
+                let qGridY = gridY + (gridH * 0.06); // مسافة ترويسة الحروف (6%)
+                let qGridH = gridH * 0.94;
 
                 let rowsPerCol = Math.ceil(qCount / 2);
                 let colW = gridW / 2;
@@ -548,14 +533,14 @@
                     let selectedChoicesIndices = [];
 
                     for (let c = 0; c < cCount; c++) {
-                        let percentFromRight = 0.20 + ((c + 0.5) * (0.80 / cCount));
+                        let percentFromRight = 0.20 + (c * (0.80 / cCount)) + (0.80 / cCount / 2);
                         let centerX = colRightEdge - (colW * percentFromRight);
 
                         let visualRoiSize = Math.min(colW * 0.12, rowH * 0.8);
                         let vx = Math.floor(centerX - (visualRoiSize / 2));
                         let vy = Math.floor(rowCenterY - (visualRoiSize / 2));
 
-                        // 🚨 البؤرة المركزية: نفحص فقط 40% من قلب الدائرة الأبيض 🚨
+                        // البؤرة المركزية: نأخذ 40% فقط من قلب الدائرة الأبيض الساطع
                         let coreSize = visualRoiSize * 0.40;
                         let x = Math.floor(centerX - (coreSize / 2));
                         let y = Math.floor(rowCenterY - (coreSize / 2));
@@ -570,12 +555,10 @@
                             let totalPixels = w_roi * h_roi;
                             let fillPercentage = blackPixels / totalPixels;
 
-                            // بما أن البؤرة بيضاء صافية (لا حدود ولا تشويش)، أي حبر يتجاوز 10% هو إجابة حقيقية
+                            // بما أن البؤرة بيضاء صافية (لا حدود ولا تشويش)، أي حبر يتجاوز 10% هو إجابة مؤكدة
                             if (fillPercentage > 0.10) {
                                 selectedChoicesIndices.push(c);
                                 cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(0, 255, 0, 255), 3);
-                            } else if (fillPercentage > 0.03) {
-                                cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(255, 255, 0, 255), 1);
                             } else {
                                 cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(255, 0, 0, 100), 1);
                             }
@@ -595,7 +578,8 @@
 
                 cv.imshow('proofCanvas', proofImg);
                 
-                src.delete(); gray.delete(); threshBox.delete(); srcTri.delete(); dstTri.delete(); 
+                src.delete(); gray.delete(); threshBox.delete(); M_dilate.delete(); 
+                contours.delete(); hierarchy.delete(); srcTri.delete(); dstTri.delete(); 
                 M.delete(); warped.delete(); thresh.delete(); proofImg.delete();
                 
                 loadingOverlay.style.display = 'none';
@@ -632,10 +616,9 @@
 
             } catch (err) {
                 console.error(err);
-                alert("⚠️ تعذر التعرف على الورقة. يرجى إدخال المربعات السوداء المطبوعة داخل الزوايا الخضراء وتوفير إضاءة جيدة.");
+                alert("⚠️ تعذر التعرف على الورقة. وجه الكاميرا حتى تظهر المربعات السوداء الأربعة بوضوح.");
                 loadingOverlay.style.display = 'none';
                 document.getElementById('videoElement').style.display = 'block';
-                cameraGuide.style.display = 'block';
                 document.getElementById('takePhotoBtn').style.display = 'block';
                 document.getElementById('canvasOutput').style.display = 'none';
             }
