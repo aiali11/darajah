@@ -35,7 +35,6 @@
         .camera-header { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.8); color: white; padding: 10px 15px; border-radius: 10px; margin-bottom: 15px; }
         .camera-instruction { font-size: 14px; font-weight: bold; }
         .btn-flash { background: #f1c40f; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 10px rgba(241,196,15,0.5); }
-        .btn-flash.active { background: #fff; color: #f1c40f; }
 
         #answerKeyPanel, #savedSessionPanel { display: none; }
         .key-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid #ecf0f1; padding-bottom: 8px; }
@@ -46,7 +45,7 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* --- إعدادات الطباعة --- */
+        /* --- إعدادات الطباعة للمربعات والدوائر المفرغة --- */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
@@ -80,7 +79,6 @@
             .questions-grid { display: grid; grid-template-columns: 50% 50%; width: 100%; height: 93%; box-sizing: border-box;}
             .question-row { display: grid; align-items: center; justify-items: center; direction: rtl; width: 100%; height: 100%; }
             .question-num { font-weight: bold; font-size: 16px; }
-            /* الدائرة يجب أن تكون واضحة ليصطادها التتبع المغناطيسي */
             .choice-bubble { width: 26px; height: 26px; border: 2px solid #000; border-radius: 50%; background-color: white; display: flex; align-items: center; justify-content: center; box-sizing: border-box;}
             
             .print-footer { display: flex; justify-content: space-between; margin-top: 25px; font-size: 16px; font-weight: bold; }
@@ -92,18 +90,19 @@
         #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.98); display: flex; justify-content: center; align-items: center; z-index: 9999; flex-direction: column;}
         .spinner { border: 5px solid #ecf0f1; border-top: 5px solid #16a085; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin-bottom: 20px;}
         #loadingText { color:#2c3e50; margin-bottom: 5px; font-size: 18px; font-weight: bold; }
-        #loadingSubText { color: #7f8c8d; font-size: 14px; font-weight: bold; margin-top: 10px;}
+        #loadingSubText { color: #e74c3c; font-size: 13px; font-weight: bold; margin-top: 10px;}
     </style>
 </head>
 <body>
 
     <div id="loadingOverlay">
         <div class="spinner"></div>
-        <div id="loadingText">جاري تجهيز محرك الذكاء الاصطناعي...</div>
+        <div id="loadingText">جاري تجهيز المصحح الآلي...</div>
+        <div id="loadingSubText">محمي ضد الأعطال وتجمد الشاشة</div>
     </div>
 
     <h2>المصحح الآلي للاختبارات</h2>
-    <p class="subtitle">🚀 التتبع المغناطيسي الخارق (بدون قيود للزوايا)</p>
+    <p class="subtitle">🚀 التتبع المغناطيسي الخارق (محمي من التجمد)</p>
 
     <div id="resultsCard">
         <div class="result-box">
@@ -117,7 +116,7 @@
             </div>
         </div>
         
-        <h4 style="color: #7f8c8d; margin-top: 20px; margin-bottom: 5px;">شاشة المطابقة البصرية (إثبات التتبع المغناطيسي):</h4>
+        <h4 style="color: #7f8c8d; margin-top: 20px; margin-bottom: 5px;">شاشة المطابقة البصرية:</h4>
         <canvas id="proofCanvas" style="width: 100%; border-radius: 10px; border: 2px solid #bdc3c7; margin-bottom: 15px;"></canvas>
         
         <button class="btn btn-save" id="nextPaperBtn">📸 تصوير ورقة طالب أخرى</button>
@@ -347,7 +346,7 @@
             isFlashOn = false;
             flashBtn.classList.remove('active');
             
-            cameraInstruction.innerHTML = isWaitingForAnswerKey ? "📸 صور <b>نموذج الإجابة</b>" : "📝 التقط الصورة (لا تقلق من ميلان أو طعج الورقة)";
+            cameraInstruction.innerHTML = isWaitingForAnswerKey ? "📸 صور <b>نموذج الإجابة</b>" : "📝 التقط الصورة من أي زاوية";
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -363,7 +362,9 @@
                     else flashBtn.style.display = 'none';
                 }, 500);
 
-            } catch (err) { alert("تعذر الوصول للكاميرا."); }
+            } catch (err) {
+                alert("تعذر الوصول للكاميرا.");
+            }
         }
 
         takePhotoBtn.addEventListener('click', () => {
@@ -382,51 +383,53 @@
                 flashBtn.classList.remove('active');
             }
 
-            loadingText.innerText = "جاري تفعيل القفل المغناطيسي للدوائر...";
-            document.getElementById('loadingSubText').innerText = "تلقائي وبدون تدخل منك!";
+            loadingText.innerText = "جاري التتبع المغناطيسي...";
+            document.getElementById('loadingSubText').innerText = "محمي ضد الأعطال";
             loadingOverlay.style.display = 'flex';
 
-            setTimeout(processRealOMR, 100);
+            setTimeout(processRealOMR, 150);
         });
 
-        // --- محرك التتبع المغناطيسي الخارق (Magnetic Bubble Snapping) ---
-        // بدون أي قيود وزوايا. يرمي الشبكة بشكل تقريبي ثم يقفز للدائرة الحقيقية.
+        // --- محرك التتبع المغناطيسي المحمي من الانهيار ---
         function processRealOMR() {
+            // مصفوفة لتخزين كل الكائنات المؤقتة وحذفها إجبارياً لمنع امتلاء الذاكرة
+            let matsToClean = [];
+            
             try {
-                let src = cv.imread(canvasOutput);
-                let gray = new cv.Mat();
+                let src = cv.imread(canvasOutput); matsToClean.push(src);
+                let gray = new cv.Mat(); matsToClean.push(gray);
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-                let blurred = new cv.Mat();
-                cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+                let blurred = new cv.Mat(); matsToClean.push(blurred);
+                // فلتر قوي جداً لتجاهل بكسلات الشاشات وتنعيم الورقة
+                cv.GaussianBlur(gray, blurred, new cv.Size(9, 9), 0);
 
-                let threshBox = new cv.Mat();
+                let threshBox = new cv.Mat(); matsToClean.push(threshBox);
                 cv.adaptiveThreshold(blurred, threshBox, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
 
-                let M_dilate = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+                let M_dilate = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3)); matsToClean.push(M_dilate);
                 cv.dilate(threshBox, threshBox, M_dilate);
 
-                let contours = new cv.MatVector();
-                let hierarchy = new cv.Mat();
+                let contours = new cv.MatVector(); matsToClean.push(contours);
+                let hierarchy = new cv.Mat(); matsToClean.push(hierarchy);
                 cv.findContours(threshBox, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
                 let squareContours = [];
                 let imgArea = src.cols * src.rows;
 
-                // 1. صيد الزوايا الأربع بأريحية تامة (من 0.05% إلى 10% من الشاشة)
                 for (let i = 0; i < contours.size(); ++i) {
                     let cnt = contours.get(i);
                     let area = cv.contourArea(cnt);
                     
                     if (area > (imgArea * 0.0005) && area < (imgArea * 0.1)) {
                         let peri = cv.arcLength(cnt, true);
-                        let approx = new cv.Mat();
+                        let approx = new cv.Mat(); matsToClean.push(approx);
                         cv.approxPolyDP(cnt, approx, 0.04 * peri, true);
                         
                         if (approx.rows >= 4 && approx.rows <= 6) {
                             let rect = cv.boundingRect(approx);
                             let aspect = rect.width / rect.height;
-                            if (aspect >= 0.3 && aspect <= 3.0) { // أريحية عالية جداً للميلان القوي
+                            if (aspect >= 0.3 && aspect <= 3.0) { 
                                 let M = cv.moments(cnt);
                                 if (M.m00 > 0) {
                                     squareContours.push({
@@ -435,15 +438,15 @@
                                         area: area,
                                         cnt: approx.clone()
                                     });
+                                    matsToClean.push(squareContours[squareContours.length-1].cnt);
                                 }
                             }
                         }
-                        approx.delete();
                     }
                 }
 
                 if (squareContours.length < 4) {
-                    throw new Error("لم يتم العثور على المربعات. تأكد أن زوايا الورقة الأربع ظاهرة في الصورة.");
+                    throw new Error("لم أتمكن من رؤية مربعات الورقة بوضوح. حاول إبعاد الكاميرا قليلاً.");
                 }
 
                 squareContours.sort((a, b) => b.area - a.area);
@@ -454,8 +457,6 @@
                 let tr = topCandidates.reduce((max, p) => (p.cx - p.cy > max.cx - max.y ? p : max), topCandidates[0]);
                 let bl = topCandidates.reduce((min, p) => (p.cx - p.cy < min.cx - min.y ? p : min), topCandidates[0]);
 
-                squareContours.forEach(sq => sq.cnt.delete());
-
                 let widthA = Math.hypot(br.cx - bl.cx, br.cy - bl.cy);
                 let widthB = Math.hypot(tr.cx - tl.cx, tr.cy - tl.y);
                 let maxWidth = Math.max(widthA, widthB);
@@ -465,18 +466,17 @@
                 let maxHeight = Math.max(heightA, heightB);
 
                 let dsize = new cv.Size(maxWidth, maxHeight);
-                let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.cx, tl.cy, tr.cx, tr.cy, br.cx, br.cy, bl.cx, bl.cy]);
-                let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth, 0, maxWidth, maxHeight, 0, maxHeight]);
-                let M = cv.getPerspectiveTransform(srcTri, dstTri);
+                let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.cx, tl.cy, tr.cx, tr.cy, br.cx, br.cy, bl.cx, bl.cy]); matsToClean.push(srcTri);
+                let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth, 0, maxWidth, maxHeight, 0, maxHeight]); matsToClean.push(dstTri);
+                let M = cv.getPerspectiveTransform(srcTri, dstTri); matsToClean.push(M);
                 
-                let warped = new cv.Mat();
+                let warped = new cv.Mat(); matsToClean.push(warped);
                 cv.warpPerspective(gray, warped, M, dsize); 
 
-                // 2. تجهيز صورة نظيفة لاصطياد الدوائر
-                let threshAns = new cv.Mat();
+                let threshAns = new cv.Mat(); matsToClean.push(threshAns);
                 cv.adaptiveThreshold(warped, threshAns, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 41, 10);
 
-                let proofImg = new cv.Mat();
+                let proofImg = new cv.Mat(); matsToClean.push(proofImg);
                 cv.cvtColor(warped, proofImg, cv.COLOR_GRAY2RGBA);
 
                 qCount = qCount || correctAnswers.length || 20; 
@@ -511,8 +511,7 @@
                         let expectedX = colRightEdge - (colW * percentFromRight);
                         let expectedY = rowCenterY;
 
-                        // 🚨 سر التتبع المغناطيسي 🚨
-                        // نوسع دائرة البحث لتصبح أكبر من الدائرة بـ 2.5 مرة لتعويض عفطات الورقة
+                        // التتبع المغناطيسي
                         let searchRoiSize = Math.min(colW * 0.20, rowH * 0.9);
                         let vx = Math.floor(expectedX - (searchRoiSize / 2));
                         let vy = Math.floor(expectedY - (searchRoiSize / 2));
@@ -522,11 +521,10 @@
 
                         if (vx > 0 && vy > 0 && vx + searchRoiSize < threshAns.cols && vy + searchRoiSize < threshAns.rows) {
                             let rectSearch = new cv.Rect(vx, vy, Math.floor(searchRoiSize), Math.floor(searchRoiSize));
-                            let searchRoi = threshAns.roi(rectSearch);
+                            let searchRoi = threshAns.roi(rectSearch); matsToClean.push(searchRoi);
 
-                            // الكمبيوتر يبحث عن "مركز الدائرة الحقيقي" داخل المربع الكبير
-                            let localContours = new cv.MatVector();
-                            let localHierarchy = new cv.Mat();
+                            let localContours = new cv.MatVector(); matsToClean.push(localContours);
+                            let localHierarchy = new cv.Mat(); matsToClean.push(localHierarchy);
                             cv.findContours(searchRoi, localContours, localHierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
                             let bestDist = 9999;
@@ -535,13 +533,11 @@
                                 let area = cv.contourArea(cnt);
                                 let roiArea = searchRoiSize * searchRoiSize;
                                 
-                                // إذا لقى شكل دائري حجمه منطقي، يسحب الشبكة له فوراً!
                                 if (area > roiArea * 0.05 && area < roiArea * 0.60) {
                                     let M_loc = cv.moments(cnt);
                                     if (M_loc.m00 > 0) {
                                         let lcx = M_loc.m10 / M_loc.m00;
                                         let lcy = M_loc.m01 / M_loc.m00;
-                                        // يقيس الأقرب للمركز المتوقع
                                         let dist = Math.hypot(lcx - (searchRoiSize/2), lcy - (searchRoiSize/2));
                                         if (dist < bestDist) {
                                             bestDist = dist;
@@ -551,11 +547,9 @@
                                     }
                                 }
                             }
-                            localContours.delete(); localHierarchy.delete(); searchRoi.delete();
                         }
 
-                        // الآن وقد سحبنا الشبكة لمركز الدائرة الحقيقي المغناطيسي، نفحص الحبر
-                        let coreSize = searchRoiSize * 0.35; // بؤرة القراءة
+                        let coreSize = searchRoiSize * 0.35; 
                         let rx = Math.floor(trueX - (coreSize / 2));
                         let ry = Math.floor(trueY - (coreSize / 2));
                         let rw = Math.floor(coreSize);
@@ -563,13 +557,12 @@
 
                         if (rx > 0 && ry > 0 && rx + rw < threshAns.cols && ry + rh < threshAns.rows) {
                             let rectChoice = new cv.Rect(rx, ry, rw, rh);
-                            let choiceRoi = threshAns.roi(rectChoice);
+                            let choiceRoi = threshAns.roi(rectChoice); matsToClean.push(choiceRoi);
                             
                             let blackPixels = cv.countNonZero(choiceRoi); 
                             let totalPixels = rw * rh;
                             let fillPercentage = blackPixels / totalPixels;
 
-                            // نعرض مربع المراقبة البصري حول المركز المغناطيسي
                             let drawSize = searchRoiSize * 0.5; 
                             let dx = Math.floor(trueX - (drawSize / 2));
                             let dy = Math.floor(trueY - (drawSize / 2));
@@ -580,7 +573,6 @@
                             } else {
                                 cv.rectangle(proofImg, new cv.Point(dx, dy), new cv.Point(dx + drawSize, dy + drawSize), new cv.Scalar(255, 0, 0, 100), 1);
                             }
-                            choiceRoi.delete();
                         }
                     }
 
@@ -590,11 +582,6 @@
                 }
 
                 cv.imshow('proofCanvas', proofImg);
-                
-                src.delete(); gray.delete(); blurred.delete(); threshBox.delete(); M_dilate.delete(); 
-                contours.delete(); hierarchy.delete(); srcTri.delete(); dstTri.delete(); 
-                M.delete(); warped.delete(); threshAns.delete(); proofImg.delete();
-                
                 loadingOverlay.style.display = 'none';
 
                 setTimeout(() => {
@@ -602,38 +589,39 @@
                         correctAnswers = detectedAnswers; 
                         localStorage.setItem('omr_correct_answers', JSON.stringify(correctAnswers));
                         alert("✅ تم قراءة نموذج الإجابة بنجاح!");
-                        
                         document.getElementById('cameraContainer').style.display = 'none';
                         document.getElementById('resultsCard').style.display = 'block';
                         document.getElementById('resScore').innerText = "نموذج";
                         document.getElementById('resPercentage').innerText = "الإجابة";
                         isWaitingForAnswerKey = false;
-                        
                     } else {
                         for(let q=0; q < qCount; q++){
                             if (detectedAnswers[q] >= 0 && detectedAnswers[q] === correctAnswers[q]) {
                                 finalScore++;
                             }
                         }
-                        
                         let percent = Math.round((finalScore / qCount) * 100);
                         document.getElementById('cameraContainer').style.display = 'none';
                         document.getElementById('resultsCard').style.display = 'block';
                         document.getElementById('resScore').innerText = `${finalScore} / ${qCount}`;
                         document.getElementById('resPercentage').innerText = `${percent}%`;
                         document.getElementById('resPercentage').style.color = percent >= 50 ? "#27ae60" : "#e74c3c";
-                        
                         if (navigator.vibrate) navigator.vibrate(200);
                     }
                 }, 100);
 
             } catch (err) {
                 console.error(err);
-                alert(err.message);
+                alert(err.message || "حدث خطأ. تأكد من وضوح الورقة في الصورة.");
                 loadingOverlay.style.display = 'none';
                 document.getElementById('videoElement').style.display = 'block';
                 document.getElementById('takePhotoBtn').style.display = 'block';
                 document.getElementById('canvasOutput').style.display = 'none';
+            } finally {
+                // التنظيف الإجباري للذاكرة لمنع التجمد تماماً
+                matsToClean.forEach(m => {
+                    try { if (m && !m.isDeleted()) m.delete(); } catch(e){}
+                });
             }
         }
 
@@ -665,7 +653,6 @@
             for (let i = 1; i <= qCount; i++) {
                 let rowHtml = `<div class="question-row" style="grid-template-columns: 20% repeat(${cCount}, ${80/cCount}%);">
                                <div class="question-num">${i} -</div>`;
-                // الدوائر لها إطار أسود واضح عشان المغناطيس يلقطها
                 for (let j = 0; j < cCount; j++) { rowHtml += `<div class="choice-bubble"></div>`; }
                 rowHtml += `</div>`;
                 container.innerHTML += rowHtml;
