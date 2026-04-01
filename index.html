@@ -3,15 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>المصحح الآلي للاختبارات (بمحرك Python)</title>
-    
-    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
-    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
-    
-    <py-config>
-        packages = ["opencv-python", "numpy"]
-    </py-config>
-
+    <title>المصحح الآلي للاختبارات</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #f4f7f6; margin: 0; padding: 20px; color: #2c3e50; overflow-x: hidden;}
         h2 { color: #16a085; margin-bottom: 5px; font-size: 28px;}
@@ -52,6 +44,9 @@
         #videoElement { width: 100%; display: block; }
         #canvasOutput { width: 100%; display: none; }
         
+        .camera-guide { position: absolute; top: 10%; left: 10%; width: 80%; height: 80%; border: 2px dashed rgba(255, 255, 255, 0.5); border-radius: 10px; pointer-events: none; z-index: 5;}
+        .guide-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-weight: bold; font-size: 14px; text-align: center; background: rgba(0,0,0,0.6); padding: 12px; border-radius: 10px; width: 85%; line-height: 1.5;}
+
         #answerKeyPanel, #savedSessionPanel { display: none; }
         .key-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid #ecf0f1; padding-bottom: 8px; }
         
@@ -61,12 +56,12 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* إعدادات الطباعة للورقة ذات الـ 4 مربعات والدوائر البيضاء المفرغة */
+        /* --- إعدادات الطباعة العالمية للمربعات الـ 4 --- */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
             body { background-color: white; margin: 0; padding: 0; }
-            .card, h2, .subtitle, #cameraContainer, #resultsCard, py-script { display: none !important; }
+            .card, h2, .subtitle, #cameraContainer, #resultsCard { display: none !important; }
             #printableSheet { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; padding: 15mm 20mm; box-sizing: border-box; }
             .print-header-container { display: flex; width: 100%; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 10px; }
             .logo-box { flex: 1; text-align: right; }
@@ -112,11 +107,11 @@
 
     <div id="loadingOverlay">
         <div class="spinner"></div>
-        <div id="loadingText">جاري تثبيت محرك Python (المرة الأولى فقط قد تستغرق 15 ثانية)...</div>
+        <div id="loadingText">جاري تجهيز محرك الذكاء الاصطناعي...</div>
     </div>
 
     <h2>المصحح الآلي للاختبارات</h2>
-    <p class="subtitle">🚀 مدعوم بمحرك Python للذكاء الاصطناعي</p>
+    <p class="subtitle">🚀 سرعة المتصفح + ذكاء البايثون</p>
 
     <div id="resultsCard">
         <div class="result-box">
@@ -129,19 +124,50 @@
                 <div class="result-label">النسبة المئوية</div>
             </div>
         </div>
-        <h4 style="color: #7f8c8d; margin-top: 20px; margin-bottom: 5px;">شاشة المطابقة البصرية (Python Vision):</h4>
+        
+        <h4 style="color: #7f8c8d; margin-top: 20px; margin-bottom: 5px;">شاشة المطابقة البصرية (للتأكد من دقة التصحيح):</h4>
         <canvas id="proofCanvas" style="width: 100%; border-radius: 10px; border: 2px solid #bdc3c7; margin-bottom: 15px;"></canvas>
-        <button class="btn btn-save" id="nextPaperBtn" onclick="startCamera()">📸 تصوير ورقة طالب أخرى</button>
+        
+        <button class="btn btn-save" id="nextPaperBtn">📸 تصوير ورقة طالب أخرى</button>
     </div>
 
     <div class="card" id="savedSessionPanel">
         <h3 style="color: #8e44ad; margin-top: 0;">📝 يوجد نموذج إجابة محفوظ!</h3>
-        <button class="btn btn-resume" id="resumeBtn" onclick="startCamera(false)">▶️ إكمال تصحيح الأوراق بنفس النموذج</button>
-        <button class="btn btn-danger" id="deleteSessionBtn" onclick="deleteSession()">🗑️ حذف النموذج للبدء بمادة جديدة</button>
+        <p>النظام يتذكر نموذج إجابة سابق لاختبار مكون من <strong id="savedQCount">0</strong> سؤال.</p>
+        <button class="btn btn-resume" id="resumeBtn">▶️ إكمال تصحيح الأوراق بنفس النموذج</button>
+        <button class="btn btn-danger" id="deleteSessionBtn">🗑️ حذف النموذج للبدء بمادة جديدة</button>
     </div>
 
     <div class="card" id="settingsPanel">
-        <h3 style="margin-top:0; border-bottom: 1px solid #eee; padding-bottom: 10px;">إعدادات الورقة</h3>
+        <h3 style="margin-top:0; border-bottom: 1px solid #eee; padding-bottom: 10px;">أولاً: بيانات ترويسة الاختبار</h3>
+        <div class="input-group">
+            <label>اسم المدرسة:</label>
+            <input type="text" id="schoolName" value="مدرسة عثمان بن عفان - رجال ألمع">
+        </div>
+        <div class="grid-2">
+            <div class="input-group">
+                <label>اسم المعلم/ة:</label>
+                <input type="text" id="teacherName" value="أ. علي">
+            </div>
+            <div class="input-group">
+                <label>المادة:</label>
+                <input type="text" id="subjectName" placeholder="مثال: لغتي">
+            </div>
+        </div>
+        <div class="input-group">
+            <label>الصف الدراسي:</label>
+            <input type="text" id="gradeName" placeholder="مثال: الصف الخامس">
+        </div>
+
+        <div class="checkbox-group">
+            <input type="checkbox" id="addPrincipalCheck">
+            <label for="addPrincipalCheck">إضافة خانة توقيع مدير/ة المدرسة</label>
+        </div>
+        <div class="input-group" id="principalInputDiv" style="display: none;">
+            <input type="text" id="principalName" placeholder="اكتب اسم مدير/ة المدرسة هنا...">
+        </div>
+
+        <h3 style="border-bottom: 1px solid #eee; padding-bottom: 10px; margin-top: 20px;">ثانياً: إعدادات الورقة والتصحيح</h3>
         <div class="grid-2">
             <div class="input-group">
                 <label>عدد الأسئلة:</label>
@@ -152,356 +178,507 @@
                 <input type="number" id="numChoices" value="4" min="2" max="6">
             </div>
         </div>
-        <button class="btn btn-print" onclick="generatePrintSheet()">🖨️ طباعة نموذج التظليل</button>
         
-        <label style="margin-top:20px;">اختر طريقة إدخال الإجابات:</label>
+        <button class="btn btn-print" id="printBtn">🖨️ طباعة نموذج التظليل للطلاب</button>
+        
+        <label style="margin-top:20px;">اختر طريقة إدخال نموذج الإجابة الصحيحة:</label>
         <div class="method-box">
-            <button class="btn btn-camera" id="scanKeyBtn" disabled onclick="startCamera(true)">📸 تصوير النموذج (الورقة الأولى)</button>
+            <button class="btn btn-camera" id="scanKeyBtn" disabled>📸 تصوير النموذج (الورقة الأولى)</button>
         </div>
         <div class="method-box">
-            <button class="btn btn-manual" id="setupKeyBtn" disabled onclick="setupManualKey()">⌨️ إدخال يدوي</button>
+            <button class="btn btn-manual" id="setupKeyBtn" disabled>⌨️ إدخال الإجابات يدوياً عبر الشاشة</button>
         </div>
     </div>
 
     <div class="card" id="answerKeyPanel">
         <h3 style="text-align: center; color: #27ae60; margin-top:0;">إدخال نموذج الإجابة يدوياً</h3>
+        <p style="font-size: 12px; color: #e74c3c; margin-top: -10px;">تنبيه: تأكد من تغيير الإجابات، إذا تركتها بدون تغيير سيتم حفظها كلها كخيار (أ).</p>
         <div id="keyForm"></div>
-        <button class="btn btn-save" onclick="saveManualKey()">💾 حفظ وبدء التصحيح</button>
+        <button class="btn btn-save" id="saveKeyAndStartBtn">💾 حفظ وبدء التصحيح</button>
     </div>
 
     <div id="cameraContainer">
         <div class="camera-header">
-            <div class="camera-instruction" id="cameraInstruction">📝 صور الورقة بالكامل</div>
-            <button class="btn-flash" id="flashBtn" onclick="toggleFlash()">💡</button>
+            <div class="camera-instruction" id="cameraInstruction">📝 وجه الكاميرا لتشمل الورقة بالكامل</div>
+            <button class="btn-flash" id="flashBtn" title="تشغيل الكشاف">💡</button>
         </div>
+        
         <div id="cameraWrapper">
             <video id="videoElement" autoplay playsinline muted></video>
+            <div class="camera-guide" id="cameraGuide">
+                <div class="guide-text">اجعل الورقة تملأ الشاشة تقريباً<br>وتأكد من ظهور المربعات السوداء الأربعة بوضوح</div>
+            </div>
             <canvas id="canvasOutput"></canvas>
         </div>
-        <button class="btn btn-capture" id="takePhotoBtn" onclick="takeSnapshot()">📸 التقط الصورة وصحح</button>
-        <button id="triggerPythonBtn" style="display:none;" py-click="process_image()"></button>
+        
+        <button class="btn btn-capture" id="takePhotoBtn">📸 التقط الصورة وصحح</button>
     </div>
 
     <div id="printableSheet">
         <div class="print-header-container">
-            <div class="logo-box"><img src="minisLogo.png" alt="شعار التعليم"></div>
+            <div class="logo-box">
+                <img src="minisLogo.png" alt="شعار التعليم">
+            </div>
             <div class="title-box">
-                <div class="school-name">مدرسة عثمان بن عفان - رجال ألمع</div>
-                <div class="test-info">المادة: ........ | الصف: ........</div>
+                <div class="school-name" id="printSchool"></div>
+                <div class="test-info">
+                    المادة: <span id="printSubject"></span> | الصف: <span id="printGrade"></span>
+                </div>
             </div>
             <div class="empty-box"></div> 
         </div>
+
         <div class="instruction-text">نموذج إجابة الاختبار - يرجى تظليل الدائرة بالكامل</div>
+        
         <div class="student-info">
             <div>اسم الطالب: ...........................................................</div>
             <div style="text-align: left;">الدرجة: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / <span id="printTotal"></span></div>
         </div>
+        
         <div class="omr-scanner-box">
             <div class="anchor-marker m-tr"></div>
             <div class="anchor-marker m-tl"></div>
             <div class="anchor-marker m-br"></div>
             <div class="anchor-marker m-bl"></div>
+
             <div class="grid-wrapper">
                 <div class="keys-header-container" id="keysHeaderContainer"></div>
                 <div class="questions-grid" id="questionsContainer"></div>
             </div>
         </div>
+
+        <div class="print-footer">
+            <div class="sig-block sig-right">
+                <div>معلم/ة المادة: <span id="printTeacherFooter"></span></div>
+                <div style="margin-top: 10px;">التوقيع: ............................</div>
+            </div>
+            <div class="sig-block sig-left" id="principalSigBlock" style="display: none;">
+                <div>مدير/ة المدرسة: <span id="printPrincipalFooter"></span></div>
+                <div style="margin-top: 10px;">التوقيع: ............................</div>
+            </div>
+        </div>
     </div>
 
-    <py-script>
-        import cv2
-        import numpy as np
-        import json
-        from js import document, window, Uint8ClampedArray, ImageData, alert, console
-
-        # عند اكتمال تحميل بايثون
-        document.getElementById('loadingOverlay').style.display = 'none'
-        document.getElementById('scanKeyBtn').disabled = False
-        document.getElementById('setupKeyBtn').disabled = False
-
-        def process_image(*args):
-            try:
-                document.getElementById('loadingText').innerText = "Python يعالج الصورة..."
-                
-                # 1. سحب الصورة من الكانفاس (الجافاسكريبت) إلى البايثون
-                canvas = document.getElementById('canvasOutput')
-                ctx = canvas.getContext('2d')
-                w, h = canvas.width, canvas.height
-                img_data = ctx.getImageData(0, 0, w, h)
-                
-                # تحويل البيانات إلى مصفوفة Numpy
-                data = img_data.data.to_py()
-                np_arr = np.array(data, dtype=np.uint8).reshape((h, w, 4))
-                gray = cv2.cvtColor(np_arr, cv2.COLOR_RGBA2GRAY)
-
-                # 2. فلترة قوية واكتشاف الحواف
-                blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-                thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 51, 15)
-                kernel = np.ones((3,3), np.uint8)
-                dilated = cv2.dilate(thresh, kernel, iterations=1)
-
-                contours, _ = cv2.findContours(dilated, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-
-                # 3. صيد المربعات الأربعة بذكاء البايثون (يتجاهل الكيبورد والمفرش)
-                square_contours = []
-                img_area = w * h
-                for cnt in contours:
-                    area = cv2.contourArea(cnt)
-                    if (img_area * 0.001) < area < (img_area * 0.05):
-                        peri = cv2.arcLength(cnt, True)
-                        approx = cv2.approxPolyDP(cnt, 0.04 * peri, True)
-                        if 4 <= len(approx) <= 6:
-                            x, y, bw, bh = cv2.boundingRect(approx)
-                            aspect = float(bw) / bh
-                            if 0.5 <= aspect <= 1.5:
-                                M = cv2.moments(cnt)
-                                if M["m00"] != 0:
-                                    cx = int(M["m10"] / M["m00"])
-                                    cy = int(M["m01"] / M["m00"])
-                                    square_contours.append({"cx": cx, "cy": cy, "area": area})
-
-                if len(square_contours) < 4:
-                    raise Exception("لم يتم العثور على المربعات الأربعة.")
-
-                # ترتيب المربعات حسب المساحة لأخذ أكبر 10 فقط وتجاهل الغبار والأزرار
-                square_contours.sort(key=lambda x: x["area"], reverse=True)
-                top_candidates = square_contours[:10]
-
-                # استخراج الزوايا
-                tl = min(top_candidates, key=lambda p: p["cx"] + p["cy"])
-                br = max(top_candidates, key=lambda p: p["cx"] + p["cy"])
-                tr = max(top_candidates, key=lambda p: p["cx"] - p["cy"])
-                bl = min(top_candidates, key=lambda p: p["cx"] - p["cy"])
-
-                # 4. فرد الورقة رياضياً (Perspective Transform)
-                pts1 = np.float32([[tl["cx"], tl["cy"]], [tr["cx"], tr["cy"]], [br["cx"], br["cy"]], [bl["cx"], bl["cy"]]])
-                maxWidth = max(int(np.linalg.norm(np.array([br["cx"], br["cy"]]) - np.array([bl["cx"], bl["cy"]]))),
-                               int(np.linalg.norm(np.array([tr["cx"], tr["cy"]]) - np.array([tl["cx"], tl["cy"]]))))
-                maxHeight = max(int(np.linalg.norm(np.array([tr["cx"], tr["cy"]]) - np.array([br["cx"], br["cy"]]))),
-                                int(np.linalg.norm(np.array([tl["cx"], tl["cy"]]) - np.array([bl["cx"], bl["cy"]]))))
-
-                pts2 = np.float32([[0, 0], [maxWidth, 0], [maxWidth, maxHeight], [0, maxHeight]])
-                M_trans = cv2.getPerspectiveTransform(pts1, pts2)
-                warped = cv2.warpPerspective(gray, M_trans, (maxWidth, maxHeight))
-
-                # 5. قراءة التظليل من الدوائر المفرغة البيضاء
-                thresh_ans = cv2.adaptiveThreshold(warped, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 41, 10)
-                proof_img = cv2.cvtColor(warped, cv2.COLOR_GRAY2RGBA)
-
-                qCount = int(document.getElementById('numQuestions').value)
-                cCount = int(document.getElementById('numChoices').value)
-
-                gridX = int(maxWidth * 0.04)
-                gridY = int(maxHeight * 0.07)
-                gridW = int(maxWidth * 0.92)
-                gridH = int(maxHeight * 0.89)
-
-                qGridY = int(gridY + (gridH * 0.07))
-                qGridH = int(gridH * 0.93)
-
-                rowsPerCol = int(np.ceil(qCount / 2.0))
-                colW = int(gridW / 2)
-                rowH = int(qGridH / rowsPerCol)
-
-                detected_answers = []
-
-                for q in range(qCount):
-                    isRightCol = (q % 2 == 0)
-                    rowIdx = q // 2
-                    
-                    colRightEdge = gridX + (gridW if isRightCol else colW)
-                    rowCenterY = int(qGridY + (rowIdx * rowH) + (rowH / 2))
-
-                    selected_indices = []
-
-                    for c in range(cCount):
-                        percentFromRight = 0.20 + (c * (0.80 / cCount)) + (0.80 / cCount / 2)
-                        centerX = int(colRightEdge - (colW * percentFromRight))
-
-                        visualRoiSize = min(colW * 0.12, rowH * 0.8)
-                        vx = int(centerX - (visualRoiSize / 2))
-                        vy = int(rowCenterY - (visualRoiSize / 2))
-
-                        # البؤرة المركزية (القلب الأبيض)
-                        coreSize = visualRoiSize * 0.40
-                        x = int(centerX - (coreSize / 2))
-                        y = int(rowCenterY - (coreSize / 2))
-                        w_roi = int(coreSize)
-                        h_roi = int(coreSize)
-
-                        if x > 0 and y > 0 and x + w_roi < thresh_ans.shape[1] and y + h_roi < thresh_ans.shape[0]:
-                            roi = thresh_ans[y:y+h_roi, x:x+w_roi]
-                            black_pixels = cv2.countNonZero(roi)
-                            total_pixels = w_roi * h_roi
-                            fill_percentage = black_pixels / total_pixels
-
-                            # إذا كان الحبر يغطي أكثر من 10% من قلب الدائرة البيضاء فهو تظليل مؤكد
-                            if fill_percentage > 0.10:
-                                selected_indices.append(c)
-                                cv2.rectangle(proof_img, (vx, vy), (vx + int(visualRoiSize), vy + int(visualRoiSize)), (0, 255, 0, 255), 3)
-                            else:
-                                cv2.rectangle(proof_img, (vx, vy), (vx + int(visualRoiSize), vy + int(visualRoiSize)), (255, 0, 0, 100), 1)
-
-                    if len(selected_indices) == 1:
-                        detected_answers.append(selected_indices[0])
-                    elif len(selected_indices) > 1:
-                        detected_answers.append(-2)
-                    else:
-                        detected_answers.append(-1)
-
-                # 6. إرجاع الصورة المصححة إلى الجافاسكريبت لعرضها
-                proof_flat = proof_img.flatten().tolist()
-                js_array = Uint8ClampedArray.new(proof_flat)
-                new_img_data = ImageData.new(js_array, maxWidth, maxHeight)
-                
-                proofCanvas = document.getElementById('proofCanvas')
-                proofCanvas.width = maxWidth
-                proofCanvas.height = maxHeight
-                proofCanvas.getContext('2d').putImageData(new_img_data, 0, 0)
-                
-                document.getElementById('loadingOverlay').style.display = 'none'
-
-                # استدعاء دالة عرض النتائج بالجافاسكريبت
-                window.finishPythonProcess(json.dumps(detected_answers))
-
-            except Exception as e:
-                console.log(str(e))
-                window.handlePythonError()
-    </py-script>
+    <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
 
     <script>
+        const video = document.getElementById('videoElement');
+        const canvasOutput = document.getElementById('canvasOutput');
+        const proofCanvas = document.getElementById('proofCanvas');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.getElementById('loadingText');
+        const takePhotoBtn = document.getElementById('takePhotoBtn');
+        const cameraInstruction = document.getElementById('cameraInstruction');
+        const cameraGuide = document.getElementById('cameraGuide');
+        const flashBtn = document.getElementById('flashBtn');
+        const cameraWrapper = document.getElementById('cameraWrapper');
+        
+        const arabicLetters = ['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
+        let correctAnswers = []; 
+        let isWaitingForAnswerKey = false;
+        let qCount, cCount;
+        
         let videoTrack = null;
         let isFlashOn = false;
-        let isWaitingForAnswerKey = false;
-        const arabicLetters = ['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
 
-        window.onload = () => {
-            if(localStorage.getItem('omr_correct_answers')) {
-                document.getElementById('savedQCount').innerText = JSON.parse(localStorage.getItem('omr_correct_answers')).length;
+        document.getElementById('addPrincipalCheck').addEventListener('change', function() {
+            document.getElementById('principalInputDiv').style.display = this.checked ? 'block' : 'none';
+        });
+
+        function onOpenCvReady() {
+            cv['onRuntimeInitialized'] = () => {
+                loadingOverlay.style.display = 'none';
+                document.getElementById('setupKeyBtn').disabled = false;
+                document.getElementById('scanKeyBtn').disabled = false;
+                checkSavedSession();
+            }
+        }
+
+        function checkSavedSession() {
+            const savedData = localStorage.getItem('omr_correct_answers');
+            if (savedData) {
+                correctAnswers = JSON.parse(savedData);
+                document.getElementById('savedQCount').innerText = correctAnswers.length;
                 document.getElementById('settingsPanel').style.display = 'none';
                 document.getElementById('savedSessionPanel').style.display = 'block';
             }
-        };
-
-        function startCamera(isKey = false) {
-            isWaitingForAnswerKey = isKey;
-            document.getElementById('settingsPanel').style.display = 'none';
-            document.getElementById('savedSessionPanel').style.display = 'none';
-            document.getElementById('resultsCard').style.display = 'none';
-            document.getElementById('cameraContainer').style.display = 'block';
-            document.getElementById('cameraWrapper').style.display = 'block';
-            document.getElementById('videoElement').style.display = 'block';
-            document.getElementById('takePhotoBtn').style.display = 'block';
-            document.getElementById('canvasOutput').style.display = 'none';
-            
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: {ideal: 1280}, height: {ideal: 720} }, audio: false })
-            .then(stream => {
-                document.getElementById('videoElement').srcObject = stream;
-                videoTrack = stream.getVideoTracks()[0];
-            }).catch(err => alert("تعذر الوصول للكاميرا."));
         }
 
-        function takeSnapshot() {
-            const video = document.getElementById('videoElement');
-            const canvas = document.getElementById('canvasOutput');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            video.style.display = 'none';
-            document.getElementById('takePhotoBtn').style.display = 'none';
-            canvas.style.display = 'block';
-            
-            document.getElementById('loadingOverlay').style.display = 'flex';
-            
-            // استدعاء زر البايثون المخفي
-            setTimeout(() => { document.getElementById('triggerPythonBtn').click(); }, 200);
-        }
+        document.getElementById('printBtn').addEventListener('click', generatePrintSheet);
+        
+        document.getElementById('resumeBtn').addEventListener('click', () => { 
+            isWaitingForAnswerKey = false;
+            startInAppCamera(); 
+        });
+        
+        document.getElementById('deleteSessionBtn').addEventListener('click', () => {
+            if (confirm("هل أنت متأكد من حذف النموذج؟")) { localStorage.removeItem('omr_correct_answers'); location.reload(); }
+        });
 
-        function finishPythonProcess(detectedJson) {
-            let detected = JSON.parse(detectedJson);
-            let qCount = detected.length;
-            
-            if(isWaitingForAnswerKey) {
-                localStorage.setItem('omr_correct_answers', JSON.stringify(detected));
-                alert("تم حفظ نموذج الإجابة بنجاح عبر Python!");
-                document.getElementById('cameraContainer').style.display = 'none';
-                document.getElementById('resultsCard').style.display = 'block';
-                document.getElementById('resScore').innerText = "نموذج";
-                document.getElementById('resPercentage').innerText = "الإجابة";
-            } else {
-                let correct = JSON.parse(localStorage.getItem('omr_correct_answers'));
-                let score = 0;
-                for(let i=0; i<qCount; i++) {
-                    if(detected[i] >= 0 && detected[i] === correct[i]) score++;
-                }
-                let pct = Math.round((score/qCount)*100);
-                document.getElementById('cameraContainer').style.display = 'none';
-                document.getElementById('resultsCard').style.display = 'block';
-                document.getElementById('resScore').innerText = `${score} / ${qCount}`;
-                document.getElementById('resPercentage').innerText = `${pct}%`;
-                document.getElementById('resPercentage').style.color = pct >= 50 ? "#27ae60" : "#e74c3c";
+        document.getElementById('scanKeyBtn').addEventListener('click', () => {
+            qCount = parseInt(document.getElementById('numQuestions').value);
+            cCount = parseInt(document.getElementById('numChoices').value);
+            isWaitingForAnswerKey = true;
+            startInAppCamera();
+        });
+
+        document.getElementById('setupKeyBtn').addEventListener('click', () => {
+            qCount = parseInt(document.getElementById('numQuestions').value);
+            cCount = parseInt(document.getElementById('numChoices').value);
+            const form = document.getElementById('keyForm');
+            form.innerHTML = ''; 
+            for (let i = 1; i <= qCount; i++) {
+                let optionsHtml = '';
+                for (let j = 0; j < cCount; j++) { optionsHtml += `<option value="${j}">${arabicLetters[j]}</option>`; }
+                form.innerHTML += `<div class="key-row"><span style="font-weight:bold;">سؤال ${i}:</span><select id="ans_${i}">${optionsHtml}</select></div>`;
             }
-        }
-
-        function handlePythonError() {
-            document.getElementById('loadingOverlay').style.display = 'none';
-            alert("⚠️ لم يتمكن البايثون من إيجاد المربعات الأربعة. تأكد من الإضاءة ووضوح الورقة.");
-            document.getElementById('videoElement').style.display = 'block';
-            document.getElementById('takePhotoBtn').style.display = 'block';
-            document.getElementById('canvasOutput').style.display = 'none';
-        }
-
-        function toggleFlash() {
-            if (videoTrack && videoTrack.getCapabilities().torch) {
-                isFlashOn = !isFlashOn;
-                videoTrack.applyConstraints({ advanced: [{ torch: isFlashOn }] });
-            }
-        }
-
-        function deleteSession() {
-            localStorage.removeItem('omr_correct_answers'); location.reload();
-        }
-
-        function setupManualKey() {
-            let qCount = document.getElementById('numQuestions').value;
-            let cCount = document.getElementById('numChoices').value;
-            let html = '';
-            for(let i=1; i<=qCount; i++){
-                let opts = '';
-                for(let j=0; j<cCount; j++) opts += `<option value="${j}">${arabicLetters[j]}</option>`;
-                html += `<div class="key-row"><span>سؤال ${i}:</span><select id="ans_${i}">${opts}</select></div>`;
-            }
-            document.getElementById('keyForm').innerHTML = html;
             document.getElementById('settingsPanel').style.display = 'none';
             document.getElementById('answerKeyPanel').style.display = 'block';
+        });
+
+        document.getElementById('saveKeyAndStartBtn').addEventListener('click', () => {
+            correctAnswers = [];
+            for (let i = 1; i <= qCount; i++) { correctAnswers.push(parseInt(document.getElementById(`ans_${i}`).value)); }
+            localStorage.setItem('omr_correct_answers', JSON.stringify(correctAnswers));
+            isWaitingForAnswerKey = false;
+            startInAppCamera();
+        });
+
+        document.getElementById('nextPaperBtn').addEventListener('click', () => {
+            document.getElementById('resultsCard').style.display = 'none';
+            startInAppCamera();
+        });
+
+        flashBtn.addEventListener('click', async () => {
+            if (!videoTrack) return;
+            try {
+                const capabilities = videoTrack.getCapabilities();
+                if (capabilities.torch) {
+                    isFlashOn = !isFlashOn;
+                    await videoTrack.applyConstraints({ advanced: [{ torch: isFlashOn }] });
+                    flashBtn.classList.toggle('active');
+                } else {
+                    alert("عذراً، متصفحك أو جهازك لا يدعم تشغيل الفلاش من الموقع مباشرة.");
+                }
+            } catch (err) {
+                console.error("خطأ في تشغيل الفلاش", err);
+            }
+        });
+
+        async function startInAppCamera() {
+            document.getElementById('settingsPanel').style.display = 'none';
+            document.getElementById('savedSessionPanel').style.display = 'none';
+            document.getElementById('answerKeyPanel').style.display = 'none';
+            document.getElementById('cameraContainer').style.display = 'block';
+            cameraWrapper.style.display = 'block';
+            
+            canvasOutput.style.display = 'none'; 
+            video.style.display = 'block';
+            cameraGuide.style.display = 'block'; 
+            takePhotoBtn.style.display = 'block';
+            isFlashOn = false;
+            flashBtn.classList.remove('active');
+            
+            if(isWaitingForAnswerKey) {
+                cameraInstruction.innerHTML = "📸 صور <b>نموذج الإجابة</b>";
+            } else {
+                cameraInstruction.innerHTML = "📝 وجه الكاميرا لتشمل الورقة بالكامل";
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment", width: {ideal: 1280}, height: {ideal: 720} }, 
+                    audio: false 
+                });
+                video.srcObject = stream;
+                videoTrack = stream.getVideoTracks()[0];
+                
+                setTimeout(() => {
+                    const capabilities = videoTrack.getCapabilities();
+                    if(capabilities.torch) {
+                        flashBtn.style.display = 'flex';
+                    } else {
+                        flashBtn.style.display = 'none';
+                    }
+                }, 500);
+
+            } catch (err) {
+                alert("تعذر الوصول للكاميرا. يرجى إعطاء الصلاحية للمتصفح.");
+            }
         }
 
-        function saveManualKey() {
-            let arr = [];
-            for(let i=1; i<=document.getElementById('numQuestions').value; i++) {
-                arr.push(parseInt(document.getElementById(`ans_${i}`).value));
+        takePhotoBtn.addEventListener('click', () => {
+            canvasOutput.width = video.videoWidth;
+            canvasOutput.height = video.videoHeight;
+            const ctx = canvasOutput.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvasOutput.width, canvasOutput.height);
+
+            video.style.display = 'none';
+            cameraGuide.style.display = 'none';
+            takePhotoBtn.style.display = 'none';
+            canvasOutput.style.display = 'block';
+
+            if (isFlashOn && videoTrack) {
+                videoTrack.applyConstraints({ advanced: [{ torch: false }] });
+                isFlashOn = false;
+                flashBtn.classList.remove('active');
             }
-            localStorage.setItem('omr_correct_answers', JSON.stringify(arr));
-            startCamera(false);
+
+            loadingText.innerText = "جاري المعالجة السريعة والذكية...";
+            loadingOverlay.style.display = 'flex';
+
+            setTimeout(processRealOMR, 100);
+        });
+
+        // --- محرك الذكاء المترجم من البايثون (سريع + ذكي + بدون قيود) ---
+        function processRealOMR() {
+            try {
+                let src = cv.imread(canvasOutput);
+                let gray = new cv.Mat();
+                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+                // تنعيم الصورة لاكتشاف المربعات بسهولة
+                let blurred = new cv.Mat();
+                cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+                
+                let threshBox = new cv.Mat();
+                cv.adaptiveThreshold(blurred, threshBox, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
+
+                let M_dilate = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+                cv.dilate(threshBox, threshBox, M_dilate);
+
+                let contours = new cv.MatVector();
+                let hierarchy = new cv.Mat();
+                
+                // RETR_LIST: لاختراق الورقة واكتشاف أي مربع أسود
+                cv.findContours(threshBox, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+                let squareContours = [];
+                let imgArea = src.cols * src.rows;
+
+                for (let i = 0; i < contours.size(); ++i) {
+                    let cnt = contours.get(i);
+                    let area = cv.contourArea(cnt);
+                    
+                    // فلتر ذكي: المربعات السوداء يجب أن تكون بين 0.1% إلى 5% من مساحة الصورة
+                    if (area > (imgArea * 0.001) && area < (imgArea * 0.05)) {
+                        let peri = cv.arcLength(cnt, true);
+                        let approx = new cv.Mat();
+                        cv.approxPolyDP(cnt, approx, 0.04 * peri, true);
+                        
+                        if (approx.rows >= 4 && approx.rows <= 6) {
+                            let rect = cv.boundingRect(approx);
+                            let aspect = rect.width / rect.height;
+                            
+                            // التأكد أنه مربع تقريباً
+                            if (aspect >= 0.5 && aspect <= 1.5) {
+                                let M = cv.moments(cnt);
+                                if (M.m00 > 0) {
+                                    squareContours.push({
+                                        cx: M.m10 / M.m00,
+                                        cy: M.m01 / M.m00,
+                                        area: area,
+                                        cnt: approx.clone()
+                                    });
+                                }
+                            }
+                        }
+                        approx.delete();
+                    }
+                }
+
+                if (squareContours.length < 4) {
+                    throw new Error("لم أتمكن من رؤية المربعات السوداء بوضوح.");
+                }
+
+                // 🚨 فلتر العباقرة: استخراج أكبر المربعات لتجاهل أي تشويش (أزرار الكيبورد وغيرها)
+                squareContours.sort((a, b) => b.area - a.area);
+                let topCandidates = squareContours.slice(0, 10);
+
+                // إيجاد الزوايا الأربع للورقة من هذه المربعات
+                let tl = topCandidates.reduce((min, p) => (p.cx + p.cy < min.cx + min.cy ? p : min), topCandidates[0]);
+                let br = topCandidates.reduce((max, p) => (p.cx + p.cy > max.cx + max.cy ? p : max), topCandidates[0]);
+                let tr = topCandidates.reduce((max, p) => (p.cx - p.cy > max.cx - max.y ? p : max), topCandidates[0]);
+                let bl = topCandidates.reduce((min, p) => (p.cx - p.cy < min.cx - min.y ? p : min), topCandidates[0]);
+
+                squareContours.forEach(sq => sq.cnt.delete());
+
+                // فرد الورقة بنسب هندسية دقيقة
+                let widthA = Math.hypot(br.cx - bl.cx, br.cy - bl.cy);
+                let widthB = Math.hypot(tr.cx - tl.cx, tr.cy - tl.y);
+                let maxWidth = Math.max(widthA, widthB);
+
+                let heightA = Math.hypot(tr.cx - br.cx, tr.cy - br.cy);
+                let heightB = Math.hypot(tl.cx - bl.cx, tl.cy - bl.cy);
+                let maxHeight = Math.max(heightA, heightB);
+
+                let dsize = new cv.Size(maxWidth, maxHeight);
+                let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.cx, tl.cy, tr.cx, tr.cy, br.cx, br.cy, bl.cx, bl.cy]);
+                let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth, 0, maxWidth, maxHeight, 0, maxHeight]);
+                let M = cv.getPerspectiveTransform(srcTri, dstTri);
+                
+                let warped = new cv.Mat();
+                cv.warpPerspective(gray, warped, M, dsize); 
+
+                // ----------------------------------------------------
+                // قراءة الإجابات بـ "البؤرة المركزية" لتجاهل الإطارات السوداء
+                let thresh = new cv.Mat();
+                cv.adaptiveThreshold(warped, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 41, 10);
+
+                let proofImg = new cv.Mat();
+                cv.cvtColor(warped, proofImg, cv.COLOR_GRAY2RGBA);
+
+                qCount = qCount || correctAnswers.length || 20; 
+                cCount = cCount || parseInt(document.getElementById('numChoices').value) || 4;
+                
+                let gridX = maxWidth * 0.04;
+                let gridY = maxHeight * 0.07;
+                let gridW = maxWidth * 0.92;
+                let gridH = maxHeight * 0.89;
+
+                let qGridY = gridY + (gridH * 0.07); 
+                let qGridH = gridH * 0.93; 
+
+                let rowsPerCol = Math.ceil(qCount / 2);
+                let colW = gridW / 2;
+                let rowH = qGridH / rowsPerCol;
+
+                let finalScore = 0;
+                let detectedAnswers = [];
+
+                for (let q = 0; q < qCount; q++) {
+                    let isRightCol = (q % 2 === 0);
+                    let rowIdx = Math.floor(q / 2);
+                    
+                    let colRightEdge = gridX + (isRightCol ? gridW : colW);
+                    let rowCenterY = qGridY + (rowIdx * rowH) + (rowH / 2);
+
+                    let selectedChoicesIndices = [];
+
+                    for (let c = 0; c < cCount; c++) {
+                        let percentFromRight = 0.20 + ((c + 0.5) * (0.80 / cCount));
+                        let centerX = colRightEdge - (colW * percentFromRight);
+
+                        let visualRoiSize = Math.min(colW * 0.12, rowH * 0.8);
+                        let vx = Math.floor(centerX - (visualRoiSize / 2));
+                        let vy = Math.floor(rowCenterY - (visualRoiSize / 2));
+
+                        // 🚨 البؤرة: فحص 40% فقط من وسط الدائرة الأبيض الساطع 🚨
+                        let coreSize = visualRoiSize * 0.40;
+                        let x = Math.floor(centerX - (coreSize / 2));
+                        let y = Math.floor(rowCenterY - (coreSize / 2));
+                        let w_roi = Math.floor(coreSize);
+                        let h_roi = Math.floor(coreSize);
+
+                        if (x > 0 && y > 0 && x + w_roi < thresh.cols && y + h_roi < thresh.rows) {
+                            let rectChoice = new cv.Rect(x, y, w_roi, h_roi);
+                            let choiceRoi = thresh.roi(rectChoice);
+                            
+                            let blackPixels = cv.countNonZero(choiceRoi); 
+                            let totalPixels = w_roi * h_roi;
+                            let fillPercentage = blackPixels / totalPixels;
+
+                            // لأن الدائرة بيضاء تماماً من الداخل، أي حبر يتجاوز 10% هو شخبطة طالب
+                            if (fillPercentage > 0.10) {
+                                selectedChoicesIndices.push(c);
+                                cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(0, 255, 0, 255), 3);
+                            } else {
+                                cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(255, 0, 0, 100), 1);
+                            }
+                            
+                            choiceRoi.delete();
+                        }
+                    }
+
+                    if (selectedChoicesIndices.length === 1) {
+                        detectedAnswers.push(selectedChoicesIndices[0]);
+                    } else if (selectedChoicesIndices.length > 1) {
+                        detectedAnswers.push(-2); 
+                    } else {
+                        detectedAnswers.push(-1); 
+                    }
+                }
+
+                cv.imshow('proofCanvas', proofImg);
+                
+                src.delete(); gray.delete(); blurred.delete(); threshBox.delete(); M_dilate.delete(); 
+                contours.delete(); hierarchy.delete(); srcTri.delete(); dstTri.delete(); 
+                M.delete(); warped.delete(); thresh.delete(); proofImg.delete();
+                
+                loadingOverlay.style.display = 'none';
+
+                setTimeout(() => {
+                    if(isWaitingForAnswerKey) {
+                        correctAnswers = detectedAnswers; 
+                        localStorage.setItem('omr_correct_answers', JSON.stringify(correctAnswers));
+                        alert("✅ تم قراءة نموذج الإجابة بنجاح!");
+                        
+                        document.getElementById('cameraWrapper').style.display = 'none';
+                        document.getElementById('resultsCard').style.display = 'block';
+                        document.getElementById('resScore').innerText = "نموذج";
+                        document.getElementById('resPercentage').innerText = "الإجابة";
+                        isWaitingForAnswerKey = false;
+                        
+                    } else {
+                        for(let q=0; q < qCount; q++){
+                            if (detectedAnswers[q] >= 0 && detectedAnswers[q] === correctAnswers[q]) {
+                                finalScore++;
+                            }
+                        }
+                        
+                        let percent = Math.round((finalScore / qCount) * 100);
+                        document.getElementById('cameraWrapper').style.display = 'none';
+                        document.getElementById('resultsCard').style.display = 'block';
+                        document.getElementById('resScore').innerText = `${finalScore} / ${qCount}`;
+                        document.getElementById('resPercentage').innerText = `${percent}%`;
+                        document.getElementById('resPercentage').style.color = percent >= 50 ? "#27ae60" : "#e74c3c";
+                        
+                        if (navigator.vibrate) navigator.vibrate(200);
+                    }
+                }, 100);
+
+            } catch (err) {
+                console.error(err);
+                alert("⚠️ تعذر التعرف على الورقة. تأكد من ظهور المربعات السوداء الأربعة المطبوعة بالزوايا بوضوح داخل الشاشة.");
+                loadingOverlay.style.display = 'none';
+                document.getElementById('cameraGuide').style.display = 'block';
+                document.getElementById('videoElement').style.display = 'block';
+                document.getElementById('takePhotoBtn').style.display = 'block';
+                document.getElementById('canvasOutput').style.display = 'none';
+            }
         }
 
         function generatePrintSheet() {
-            let qCount = parseInt(document.getElementById('numQuestions').value);
-            let cCount = parseInt(document.getElementById('numChoices').value);
+            document.getElementById('printSchool').innerText = document.getElementById('schoolName').value || 'اسم المدرسة';
+            document.getElementById('printSubject').innerText = document.getElementById('subjectName').value || '........';
+            document.getElementById('printGrade').innerText = document.getElementById('gradeName').value || '........';
+            document.getElementById('printTeacherFooter').innerText = document.getElementById('teacherName').value || '........';
+            
+            if (document.getElementById('addPrincipalCheck').checked) {
+                document.getElementById('principalSigBlock').style.display = 'block';
+                document.getElementById('printPrincipalFooter').innerText = document.getElementById('principalName').value || '........';
+            } else {
+                document.getElementById('principalSigBlock').style.display = 'none';
+            }
+            
+            qCount = parseInt(document.getElementById('numQuestions').value);
+            cCount = parseInt(document.getElementById('numChoices').value);
             document.getElementById('printTotal').innerText = qCount;
 
+            const keysHeader = document.getElementById('keysHeaderContainer');
             let headerHtml = `<div class="key-col" style="grid-template-columns: 20% repeat(${cCount}, ${80/cCount}%);"><div class="question-num"></div>`;
-            for (let j = 0; j < cCount; j++) headerHtml += `<div class="key-letter">${arabicLetters[j]}</div>`;
+            for (let j = 0; j < cCount; j++) { headerHtml += `<div class="key-letter">${arabicLetters[j]}</div>`; }
             headerHtml += `</div>`;
-            document.getElementById('keysHeaderContainer').innerHTML = headerHtml + headerHtml;
+            keysHeader.innerHTML = headerHtml + headerHtml;
 
-            let container = document.getElementById('questionsContainer');
+            const container = document.getElementById('questionsContainer');
             container.innerHTML = '';
             for (let i = 1; i <= qCount; i++) {
-                let rowHtml = `<div class="question-row" style="grid-template-columns: 20% repeat(${cCount}, ${80/cCount}%);"><div class="question-num">${i} -</div>`;
-                for (let j = 0; j < cCount; j++) rowHtml += `<div class="choice-bubble"></div>`;
-                container.innerHTML += rowHtml + `</div>`;
+                let rowHtml = `<div class="question-row" style="grid-template-columns: 20% repeat(${cCount}, ${80/cCount}%);">
+                               <div class="question-num">${i} -</div>`;
+                for (let j = 0; j < cCount; j++) { rowHtml += `<div class="choice-bubble"></div>`; }
+                rowHtml += `</div>`;
+                container.innerHTML += rowHtml;
             }
             window.print();
         }
