@@ -40,19 +40,16 @@
         .btn-flash { background: #f1c40f; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 10px rgba(241,196,15,0.5); }
         .btn-flash.active { background: #fff; color: #f1c40f; }
 
-        /* الحاوية الدقيقة للكاميرا لضمان توافق الـ CSS مع الـ OpenCV */
         #cameraWrapper { position: relative; width: 100%; border-radius: 15px; overflow: hidden; border: 4px solid #2c3e50; box-shadow: 0 10px 20px rgba(0,0,0,0.2); background-color: #000; display: none;}
         #videoElement { width: 100%; display: block; }
         #canvasOutput { width: 100%; display: none; }
         
-        /* شاشة التوجيه القناص (مربعات الزوايا الدقيقة) */
         .camera-guide-anchors { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5;}
-        .g-anchor { position: absolute; width: 15%; height: 15%; border: 3px solid #2ecc71; background: rgba(46, 204, 113, 0.1); border-radius: 4px;}
-        /* إحداثيات دقيقة لتطابق الكود */
-        .g-tl { top: 10%; left: 5%; }
-        .g-tr { top: 10%; right: 5%; }
-        .g-bl { bottom: 15%; left: 5%; }
-        .g-br { bottom: 15%; right: 5%; }
+        .g-anchor { position: absolute; width: 25%; height: 25%; border: 3px solid rgba(46, 204, 113, 0.8); background: rgba(46, 204, 113, 0.1); border-radius: 4px;}
+        .g-tl { top: 5%; left: 5%; }
+        .g-tr { top: 5%; right: 5%; }
+        .g-bl { bottom: 5%; left: 5%; }
+        .g-br { bottom: 5%; right: 5%; }
         .guide-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-weight: bold; font-size: 15px; text-align: center; background: rgba(0,0,0,0.7); padding: 12px; border-radius: 10px; width: 80%;}
 
         #answerKeyPanel, #savedSessionPanel { display: none; }
@@ -64,7 +61,6 @@
         .result-value { font-size: 42px; font-weight: bold; color: #16a085; }
         .result-label { font-size: 15px; color: #7f8c8d; font-weight: bold; margin-top: 5px;}
 
-        /* --- إعدادات الطباعة العالمية للمربعات --- */
         #printableSheet { display: none; }
         @media print {
             @page { size: A4; margin: 0mm; }
@@ -207,7 +203,7 @@
 
     <div id="cameraContainer">
         <div class="camera-header">
-            <div class="camera-instruction" id="cameraInstruction">📝 طابق المربعات السوداء الأربعة مع الزوايا الخضراء</div>
+            <div class="camera-instruction" id="cameraInstruction">📝 وجه الكاميرا للورقة بالكامل</div>
             <button class="btn-flash" id="flashBtn" title="تشغيل الكشاف">💡</button>
         </div>
         
@@ -218,7 +214,7 @@
                 <div class="g-anchor g-tl"></div>
                 <div class="g-anchor g-br"></div>
                 <div class="g-anchor g-bl"></div>
-                <div class="guide-text">أدخل المربعات السوداء<br>داخل هذه الزوايا الخضراء</div>
+                <div class="guide-text">اجعل المربعات السوداء الأربعة<br>تظهر تقريباً في هذه الزوايا</div>
             </div>
             <canvas id="canvasOutput"></canvas>
         </div>
@@ -281,7 +277,6 @@
         const loadingText = document.getElementById('loadingText');
         const takePhotoBtn = document.getElementById('takePhotoBtn');
         const cameraInstruction = document.getElementById('cameraInstruction');
-        const cameraGuide = document.getElementById('cameraGuide');
         const flashBtn = document.getElementById('flashBtn');
         const cameraWrapper = document.getElementById('cameraWrapper');
         
@@ -386,7 +381,7 @@
             
             canvasOutput.style.display = 'none'; 
             video.style.display = 'block';
-            cameraGuide.style.display = 'block'; 
+            document.getElementById('cameraGuide').style.display = 'block'; 
             takePhotoBtn.style.display = 'block';
             isFlashOn = false;
             flashBtn.classList.remove('active');
@@ -394,7 +389,7 @@
             if(isWaitingForAnswerKey) {
                 cameraInstruction.innerHTML = "📸 صور <b>نموذج الإجابة</b>";
             } else {
-                cameraInstruction.innerHTML = "📝 طابق المربعات السوداء الأربعة مع الزوايا الخضراء";
+                cameraInstruction.innerHTML = "📝 وجه الكاميرا لتشمل الورقة بالكامل";
             }
 
             try {
@@ -420,14 +415,13 @@
         }
 
         takePhotoBtn.addEventListener('click', () => {
-            // أخذ لقطة بنفس أبعاد الفيديو الفعلية
             canvasOutput.width = video.videoWidth;
             canvasOutput.height = video.videoHeight;
             const ctx = canvasOutput.getContext('2d');
             ctx.drawImage(video, 0, 0, canvasOutput.width, canvasOutput.height);
 
             video.style.display = 'none';
-            cameraGuide.style.display = 'none';
+            document.getElementById('cameraGuide').style.display = 'none';
             takePhotoBtn.style.display = 'none';
             canvasOutput.style.display = 'block';
 
@@ -440,81 +434,86 @@
             loadingText.innerText = "جاري قراءة الدوائر واستخراج الدرجة...";
             loadingOverlay.style.display = 'flex';
 
-            // تأخير بسيط لإعطاء الـ UI فرصة للتحديث قبل تجميد الشاشة بالمعالجة
             setTimeout(processRealOMR, 150);
         });
 
-        // --- محرك القناص (Sniper Mode) ---
+        // --- محرك الذكاء الخالص (ترجمة خوارزمية البايثون الصارمة) ---
         function processRealOMR() {
             try {
                 let src = cv.imread(canvasOutput);
                 let gray = new cv.Mat();
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-                let w = src.cols; 
-                let h = src.rows;
-                
-                // تحديد مناطق البحث (ROIs) بناءً على الصناديق الخضراء (15% من الشاشة)
-                let gW = Math.floor(w * 0.15);
-                let gH = Math.floor(h * 0.15);
-                
-                let rois = {
-                    'TL': new cv.Rect(Math.floor(w * 0.05), Math.floor(h * 0.10), gW, gH),
-                    'TR': new cv.Rect(Math.floor(w * 0.80), Math.floor(h * 0.10), gW, gH),
-                    'BL': new cv.Rect(Math.floor(w * 0.05), Math.floor(h * 0.75), gW, gH),
-                    'BR': new cv.Rect(Math.floor(w * 0.80), Math.floor(h * 0.75), gW, gH)
-                };
+                let threshBox = new cv.Mat();
+                cv.GaussianBlur(gray, threshBox, new cv.Size(5, 5), 0);
+                cv.adaptiveThreshold(threshBox, threshBox, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 51, 15);
 
-                // دالة لاصطياد المربع الأسود داخل الصندوق الأخضر فقط
-                function getAnchorCenter(roiRect) {
-                    let roiMat = gray.roi(roiRect);
-                    let threshBox = new cv.Mat();
-                    // عتبة قوية لعزل المربع الأسود
-                    cv.adaptiveThreshold(roiMat, threshBox, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 31, 15);
+                let M_dilate = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+                cv.dilate(threshBox, threshBox, M_dilate);
+
+                let contours = new cv.MatVector();
+                let hierarchy = new cv.Mat();
+                
+                // البحث في الصورة كاملة (بدون قص)
+                cv.findContours(threshBox, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+                let w = src.cols, h = src.rows;
+                // تقسيم الشاشة لمناطق منطقية لتجاهل الكيبورد في الوسط (الزوايا الأربع فقط)
+                let gw = w * 0.35; 
+                let gh = h * 0.35; 
+
+                let cTL = null, cTR = null, cBL = null, cBR = null;
+                let maxAreaTL = 0, maxAreaTR = 0, maxAreaBL = 0, maxAreaBR = 0;
+
+                for (let i = 0; i < contours.size(); ++i) {
+                    let cnt = contours.get(i);
+                    let area = cv.contourArea(cnt);
                     
-                    let contours = new cv.MatVector();
-                    let hierarchy = new cv.Mat();
-                    cv.findContours(threshBox, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
-                    let maxArea = 0; 
-                    // في حال عدم وجود مربع مثالي، نعتمد مركز الصندوق الأخضر كاحتياط
-                    let bestCx = roiRect.width / 2; 
-                    let bestCy = roiRect.height / 2;
-
-                    for (let i = 0; i < contours.size(); ++i) {
-                        let cnt = contours.get(i);
-                        let area = cv.contourArea(cnt);
-                        // يجب أن يكون الشكل بحجم مربع الارتكاز (أكبر من الغبار وأصغر من الصندوق)
-                        if (area > 20 && area < (roiRect.width * roiRect.height * 0.8)) { 
+                    // حجم المربع المطبوع لا يقل عن 30 بكسل ولا يتجاوز 10% من الشاشة
+                    if (area > 30 && area < (w * h * 0.1)) {
+                        let rect = cv.boundingRect(cnt);
+                        let aspect = rect.width / rect.height;
+                        
+                        // يجب أن يكون الشكل مربعاً لتجاهل الخطوط وأطراف الورقة
+                        if (aspect >= 0.5 && aspect <= 1.5) {
                             let M = cv.moments(cnt);
-                            if(M.m00 > 0 && area > maxArea) {
-                                maxArea = area;
-                                bestCx = M.m10 / M.m00;
-                                bestCy = M.m01 / M.m00;
+                            if (M.m00 > 0) {
+                                let cx = M.m10 / M.m00;
+                                let cy = M.m01 / M.m00;
+
+                                // تصنيف المربعات في الزوايا الصحيحة واصطياد الأكبر في كل زاوية (لتجاهل الغبار)
+                                if (cx < gw && cy < gh && area > maxAreaTL) { maxAreaTL = area; cTL = {x: cx, y: cy}; }
+                                else if (cx > w - gw && cy < gh && area > maxAreaTR) { maxAreaTR = area; cTR = {x: cx, y: cy}; }
+                                else if (cx < gw && cy > h - gh && area > maxAreaBL) { maxAreaBL = area; cBL = {x: cx, y: cy}; }
+                                else if (cx > w - gw && cy > h - gh && area > maxAreaBR) { maxAreaBR = area; cBR = {x: cx, y: cy}; }
                             }
                         }
                     }
-                    roiMat.delete(); threshBox.delete(); contours.delete(); hierarchy.delete();
-                    return { x: bestCx + roiRect.x, y: bestCy + roiRect.y };
                 }
 
-                let pTL = getAnchorCenter(rois['TL']);
-                let pTR = getAnchorCenter(rois['TR']);
-                let pBL = getAnchorCenter(rois['BL']);
-                let pBR = getAnchorCenter(rois['BR']);
+                if (!cTL || !cTR || !cBL || !cBR) {
+                    throw new Error("لم يتم العثور على المربعات الأربعة بالزوايا");
+                }
 
-                let maxWidth = Math.max(Math.hypot(pBR.x - pBL.x, pBR.y - pBL.y), Math.hypot(pTR.x - pTL.x, pTR.y - pTL.y));
-                let maxHeight = Math.max(Math.hypot(pTR.x - pBR.x, pTR.y - pBR.y), Math.hypot(pTL.x - pBL.x, pTL.y - pBL.y));
+                // حساب الأبعاد الجديدة للمنظور
+                let widthA = Math.hypot(cBR.x - cBL.x, cBR.y - cBL.y);
+                let widthB = Math.hypot(cTR.x - cTL.x, cTR.y - cTL.y);
+                let maxWidth = Math.max(widthA, widthB);
+
+                let heightA = Math.hypot(cTR.x - cBR.x, cTR.y - cBR.y);
+                let heightB = Math.hypot(cTL.x - cBL.x, cTL.y - cBL.y);
+                let maxHeight = Math.max(heightA, heightB);
 
                 let dsize = new cv.Size(maxWidth, maxHeight);
-                let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [pTL.x, pTL.y, pTR.x, pTR.y, pBR.x, pBR.y, pBL.x, pBL.y]);
+                let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [cTL.x, cTL.y, cTR.x, cTR.y, cBR.x, cBR.y, cBL.x, cBL.y]);
                 let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth, 0, maxWidth, maxHeight, 0, maxHeight]);
-                let M = cv.getPerspectiveTransform(srcTri, dstTri);
+                let M_trans = cv.getPerspectiveTransform(srcTri, dstTri);
                 
                 let warped = new cv.Mat();
-                cv.warpPerspective(gray, warped, M, dsize); // فردنا الورقة 100%
+                cv.warpPerspective(gray, warped, M_trans, dsize); 
 
-                // فلتر قراءة الدوائر
+                // ----------------------------------------------------
+                // قراءة الإجابات 
                 let thresh = new cv.Mat();
                 cv.adaptiveThreshold(warped, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 41, 10);
 
@@ -524,11 +523,11 @@
                 qCount = qCount || correctAnswers.length || 20; 
                 cCount = cCount || parseInt(document.getElementById('numChoices').value) || 4;
                 
-                // معادلات الشبكة المطابقة للـ CSS المطبوع
-                let gridX = maxWidth * 0.04;
-                let gridY = maxHeight * 0.07;
-                let gridW = maxWidth * 0.92;
-                let gridH = maxHeight * 0.89;
+                // هندسة التوزيع متطابقة مع شاشة الطباعة 100%
+                let gridX = maxWidth * 0.02;
+                let gridY = maxHeight * 0.05;
+                let gridW = maxWidth * 0.96;
+                let gridH = maxHeight * 0.91;
 
                 let qGridY = gridY + (gridH * 0.07); 
                 let qGridH = gridH * 0.93; 
@@ -572,7 +571,8 @@
                             let totalPixels = w_roi * h_roi;
                             let fillPercentage = blackPixels / totalPixels;
 
-                            if (fillPercentage > 0.15) {
+                            // أي حبر يتجاوز 10% في القلب الأبيض يعتبر إجابة
+                            if (fillPercentage > 0.10) {
                                 selectedChoicesIndices.push(c);
                                 cv.rectangle(proofImg, new cv.Point(vx, vy), new cv.Point(vx + visualRoiSize, vy + visualRoiSize), new cv.Scalar(0, 255, 0, 255), 3);
                             } else {
@@ -594,8 +594,9 @@
 
                 cv.imshow('proofCanvas', proofImg);
                 
-                src.delete(); gray.delete(); srcTri.delete(); dstTri.delete(); 
-                M.delete(); warped.delete(); thresh.delete(); proofImg.delete();
+                src.delete(); gray.delete(); threshBox.delete(); M_dilate.delete(); 
+                contours.delete(); hierarchy.delete(); srcTri.delete(); dstTri.delete(); 
+                M_trans.delete(); warped.delete(); thresh.delete(); proofImg.delete();
                 
                 loadingOverlay.style.display = 'none';
 
@@ -603,7 +604,7 @@
                     if(isWaitingForAnswerKey) {
                         correctAnswers = detectedAnswers; 
                         localStorage.setItem('omr_correct_answers', JSON.stringify(correctAnswers));
-                        alert("✅ تم قراءة نموذج الإجابة وحفظه بنجاح! راجع صورة الإثبات للتأكد.");
+                        alert("✅ تم قراءة نموذج الإجابة بنجاح!");
                         
                         document.getElementById('cameraWrapper').style.display = 'none';
                         document.getElementById('resultsCard').style.display = 'block';
@@ -631,16 +632,15 @@
 
             } catch (err) {
                 console.error(err);
-                alert("⚠️ تعذر التعرف على الورقة. تأكد من إدخال المربعات السوداء الأربعة المطبوعة داخل الزوايا الخضراء.");
+                alert("⚠️ تعذر التعرف على الورقة. تأكد من ظهور المربعات السوداء الأربعة المطبوعة بالزوايا بوضوح داخل الشاشة.");
                 loadingOverlay.style.display = 'none';
-                cameraGuide.style.display = 'block';
-                document.getElementById('takePhotoBtn').style.display = 'block';
+                document.getElementById('cameraGuide').style.display = 'block';
                 document.getElementById('videoElement').style.display = 'block';
+                document.getElementById('takePhotoBtn').style.display = 'block';
                 document.getElementById('canvasOutput').style.display = 'none';
             }
         }
 
-        // --- توليد الورقة بنظام المربعات العالمية ---
         function generatePrintSheet() {
             document.getElementById('printSchool').innerText = document.getElementById('schoolName').value || 'اسم المدرسة';
             document.getElementById('printSubject').innerText = document.getElementById('subjectName').value || '........';
